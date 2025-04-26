@@ -88,6 +88,10 @@
         }
 
         function loginWithPlayFab(googleAccessToken) {
+             if (!googleAccessToken) {
+        alert('Falha ao obter token do Google');
+        return;
+    }
             const request = {
                 TitleId: titleId,
                 AccessToken: googleAccessToken,
