@@ -100,10 +100,11 @@
                     console.log('SessionTicket:', result.data.SessionTicket);
                     console.log('EntityToken:', result.data.EntityToken.EntityToken);
                     // Redirecionar o usuário ou atualizar a UI
-                } else if (error) {
-                    console.error('Erro no login PlayFab:', error);
-                    alert('Erro no login: ' + error.errorMessage);
-                }
+              } else if (error) {
+    console.error('Erro detalhado:', error);
+    const errorMessage = error.errorMessage || error.data?.errorMessage || 'Erro desconhecido';
+    alert('Erro no login: ' + errorMessage);
+}
             });
         }
     </script>
