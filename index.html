@@ -65,22 +65,24 @@
     <script src="https://download.playfab.com/PlayFabClientApi.js"></script>
 
     <script>
-        // Inicialize o PlayFab Client
-        const titleId = '12DD32'; // Substitua pelo seu Title ID
+        // Configurações do PlayFab
+        const titleId = '12DD32'; // Seu Title ID do PlayFab
         
         function handleGoogleLogin() {
-            // Configuração do cliente Google
+            // Inicializa o cliente OAuth do Google
             const client = google.accounts.oauth2.initTokenClient({
-                client_id: '21514234895-keiqos567ifvs4hjkg3l1q5mvun8lri0.apps.googleusercontent.com', // Substitua pelo seu Google Client ID
+                client_id: '21514234895-keiqos567ifvs4hjkg3l1q5mvun8lri0.apps.googleusercontent.com',
                 scope: 'email profile openid',
                 callback: (response) => {
                     if (response.access_token) {
                         loginWithPlayFab(response.access_token);
+                    } else {
+                        alert('Falha ao obter token de acesso do Google');
                     }
                 },
                 error: (error) => {
-                    console.error('Erro no login do Google:', error);
-                    alert('Erro ao fazer login com Google');
+                    console.error('Erro no Google OAuth:', error);
+                    alert('Erro na autenticação do Google: ' + error.type);
                 }
             });
             
@@ -88,10 +90,11 @@
         }
 
         function loginWithPlayFab(googleAccessToken) {
-             if (!googleAccessToken) {
-        alert('Falha ao obter token do Google');
-        return;
-    }
+            if (!googleAccessToken) {
+                alert('Token do Google inválido');
+                return;
+            }
+
             const request = {
                 TitleId: titleId,
                 AccessToken: googleAccessToken,
@@ -99,16 +102,20 @@
             };
 
             PlayFabClientSDK.LoginWithGoogleAccount(request, (error, result) => {
-                if (result) {
+                if (result?.data?.SessionTicket) {
                     alert('Login bem-sucedido!');
-                    console.log('SessionTicket:', result.data.SessionTicket);
-                    console.log('EntityToken:', result.data.EntityToken.EntityToken);
-                    // Redirecionar o usuário ou atualizar a UI
-              } else if (error) {
-    console.error('Erro detalhado:', error);
-    const errorMessage = error.errorMessage || error.data?.errorMessage || 'Erro desconhecido';
-    alert('Erro no login: ' + errorMessage);
-}
+                    console.log('Dados da sessão:', result.data);
+                    // Redireciona para a página principal
+                    window.location.href = '/dashboard.html';
+                } else {
+                    const errorDetails = error?.data?.errorMessage || 
+                                      error?.errorMessage || 
+                                      error?.data?.errorDetails ||
+                                      'Erro desconhecido';
+                    
+                    console.error('Erro completo:', JSON.stringify(error, null, 2));
+                    alert(`Falha no login: ${errorDetails}`);
+                }
             });
         }
     </script>
