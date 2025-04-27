@@ -5,48 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login with Google - PlayFab</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-            background-color: #f5f5f5;
-        }
-
-        .login-container {
-            background: white;
-            padding: 2rem;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            text-align: center;
-        }
-
-        .google-btn {
-            background-color: #4285f4;
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 4px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            font-size: 16px;
-            transition: background-color 0.3s;
-        }
-
-        .google-btn:hover {
-            background-color: #357abd;
-        }
-
-        .google-icon {
-            height: 24px;
-            width: 24px;
-        }
-    </style>
-</head>
 <body>
     <div class="login-container">
         <h2>Login with Google</h2>
@@ -69,7 +27,6 @@
         const titleId = '12DD32'; // Seu Title ID do PlayFab
         
         function handleGoogleLogin() {
-            // Inicializa o cliente OAuth do Google
             const client = google.accounts.oauth2.initTokenClient({
                 client_id: '21514234895-keiqos567ifvs4hjkg3l1q5mvun8lri0.apps.googleusercontent.com',
                 scope: 'email profile openid',
@@ -85,18 +42,10 @@
                     alert('Erro na autenticação do Google: ' + error.type);
                 }
             });
-            
             client.requestAccessToken();
         }
 
-       function loginWithPlayFab(googleAccessToken) {
-        const request = {
-            TitleId: titleId,
-            AccessToken: googleAccessToken,
-            CreateAccount: true
-        };
-
-
+        function loginWithPlayFab(googleAccessToken) {
             const request = {
                 TitleId: titleId,
                 AccessToken: googleAccessToken,
@@ -104,22 +53,21 @@
             };
 
             PlayFabClientSDK.LoginWithGoogleAccount(request, (error, result) => {
-            // Verifica tanto em error quanto em result
-            const response = error || result;
-            
-            if (response?.data?.SessionTicket) {
-                alert('Login bem-sucedido!');
-                console.log('Session Ticket:', response.data.SessionTicket);
-                window.location.href = '/dashboard.html';
-            } else {
-                const errorDetails = response?.data?.errorMessage || 
-                                   response?.errorMessage || 
-                                   JSON.stringify(response);
-                console.error('Erro completo:', response);
-                alert(`Falha no login: ${errorDetails}`);
-            }
-        });
-    }
+                const response = error || result;
+                
+                if (response?.data?.SessionTicket) {
+                    alert('Login bem-sucedido!');
+                    console.log('Dados da sessão:', response.data);
+                    window.location.href = '/dashboard.html';
+                } else {
+                    const errorDetails = response?.data?.errorMessage || 
+                                     response?.errorMessage || 
+                                     JSON.stringify(response);
+                    console.error('Erro completo:', response);
+                    alert(`Falha no login: ${errorDetails}`);
+                }
+            });
+        }
     </script>
 </body>
 </html>
