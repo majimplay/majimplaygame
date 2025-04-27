@@ -281,7 +281,7 @@
             // Limpa os campos de usuário ao mostrar a UI de login,
             // mas mantém o PlayFabId se ele estiver no localStorage
             userDisplayName.textContent = 'Carregando...';
-            // ** MODIFICAÇÃO: Não limpa userPlayFabId se currentPlayFabId existir **
+            // Não limpa userPlayFabId se currentPlayFabId existir
             if (!currentPlayFabId) {
                  userPlayFabId.textContent = '';
             }
@@ -328,8 +328,7 @@
 
             console.log('checkExistingSession: Verificando sessão...');
             console.log('checkExistingSession: localStorage playfabId:', currentPlayFabId);
-            // console.log('checkExistingSession: PlayFabClientSDK.IsClientLoggedIn():', PlayFabClientSDK.IsClientLoggedIn()); // Não vamos depender apenas disso para iniciar o fluxo GSI
-
+            // Não vamos depender apenas de IsClientLoggedIn() para iniciar o fluxo GSI
 
             if (currentPlayFabId) {
                 console.log(`checkExistingSession: PlayFabId (${currentPlayFabId}) encontrado no localStorage. Tentando login automático com Google GSI...`);
@@ -427,7 +426,7 @@
                 }
             };
 
-            // ** CORREÇÃO: Usa LoginWithGoogleAccount com o ID Token **
+            // Usa LoginWithGoogleAccount com o ID Token
             PlayFabClientSDK.LoginWithGoogleAccount(loginRequest, (responseObject, errorDetails) => {
                 isProcessingLogin = false;
                 showLoading(false); // Garante que o spinner é oculto após a tentativa de login
@@ -450,7 +449,12 @@
                     try {
                          console.error('Detalhes completos do erro PlayFab (JSON stringified):', JSON.stringify(responseObject, null, 2));
                     } catch (e) {
-                         console.error('Não foi possível stringify o objeto de erro PlayFab:', responseObject);
+                         // Se JSON.stringify falhar, loga o objeto diretamente
+                         console.error('Não foi possível stringify o objeto de erro PlayFab. Objeto:', responseObject);
+                         // Tenta logar errorDetails também, se existir
+                         if (errorDetails) {
+                             console.error('Detalhes do erro PlayFab (errorDetails):', errorDetails);
+                         }
                     }
 
                     const errorMessageText = responseObject?.errorMessage || responseObject?.status || 'Erro desconhecido no PlayFab';
@@ -498,7 +502,12 @@
                      try {
                          console.error('Detalhes completos do erro ao carregar perfil (JSON stringified):', JSON.stringify(responseObject, null, 2));
                      } catch (e) {
-                         console.error('Não foi possível stringify o objeto de erro ao carregar perfil:', responseObject);
+                          // Se JSON.stringify falhar, loga o objeto diretamente
+                         console.error('Não foi possível stringify o objeto de erro ao carregar perfil. Objeto:', responseObject);
+                         // Tenta logar errorDetails também, se existir
+                         if (errorDetails) {
+                             console.error('Detalhes do erro ao carregar perfil (errorDetails):', errorDetails);
+                         }
                      }
 
                      const errorCodeValue = responseObject?.errorCode;
