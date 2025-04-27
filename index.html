@@ -221,7 +221,7 @@
                 currentSessionTicket = sessionTicket;
                 currentPlayFabId = playfabId;
                 // Define o ticket de sessão para chamadas futuras
-                PlayFab.ClientApi.settings.sessionTicket = currentSessionTicket;
+                // PlayFab.ClientApi.settings.sessionTicket = currentSessionTicket; // Definido dentro de loadPlayFabUserProfile se a sessão for válida
                 // Tenta buscar o perfil para validar a sessão e obter dados atualizados
                 loadPlayFabUserProfile();
             } else {
@@ -298,20 +298,18 @@
                 }
             };
 
-            PlayFab.ClientApi.LoginWithGoogleAccount(loginRequest, (error, result) => {
-                isProcessingLogin = false; // Finaliza o processamento independentemente do resultado
+            // ** CORREÇÃO APLICADA AQUI **
+            // O callback do PlayFab geralmente retorna um único objeto (responseObject)
+            // Verificamos o código de status dentro desse objeto para determinar sucesso ou erro
+            PlayFab.ClientApi.LoginWithGoogleAccount(loginRequest, (responseObject, errorDetails) => { // Renomeado 'error' para 'responseObject'
+                isProcessingLogin = false; // Finaliza o processamento
 
-                if (error) {
-                    console.error('Erro no login PlayFab com Google:', error);
-                    showError(`Falha no login PlayFab: ${error.errorMessage} (Código: ${error.errorCode})`);
-                    showLoading(false);
-                    return;
-                }
-
-                if (result && result.data && result.data.SessionTicket) {
-                    console.log('Login PlayFab bem-sucedido!', result.data);
-                    currentSessionTicket = result.data.SessionTicket;
-                    currentPlayFabId = result.data.PlayFabId;
+                // Verifica se a chamada foi bem-sucedida (código 200) E se temos os dados esperados
+                if (responseObject && responseObject.code === 200 && responseObject.data && responseObject.data.SessionTicket) {
+                    // --- Sucesso ---
+                    console.log('Login PlayFab bem-sucedido!', responseObject.data);
+                    currentSessionTicket = responseObject.data.SessionTicket;
+                    currentPlayFabId = responseObject.data.PlayFabId;
 
                     // Armazena a sessão no localStorage
                     localStorage.setItem('playfabSessionTicket', currentSessionTicket);
@@ -321,7 +319,7 @@
                     PlayFab.ClientApi.settings.sessionTicket = currentSessionTicket;
 
                     // Mostra as informações iniciais obtidas no login
-                    const initialProfile = result.data.InfoResultPayload?.PlayerProfile;
+                    const initialProfile = responseObject.data.InfoResultPayload?.PlayerProfile;
                     showUserUI(initialProfile); // Mostra a UI do usuário imediatamente
                     showLoading(false); // Esconde o loading principal
 
@@ -329,8 +327,12 @@
                     updatePlayFabProfileFromGoogle(googleAccessToken, initialProfile);
 
                 } else {
-                    console.error('Resposta inesperada do PlayFab:', result);
-                    showError('Falha no login PlayFab: Resposta inválida do servidor.');
+                    // --- Erro ---
+                    console.error('Erro no login PlayFab com Google:', responseObject, errorDetails); // Loga ambos os argumentos para depuração
+                    // Tenta extrair a mensagem de erro do objeto de resposta
+                    const errorMessageText = responseObject?.errorMessage || responseObject?.status || 'Erro desconhecido';
+                    const errorCodeValue = responseObject?.errorCode || 'N/A';
+                    showError(`Falha no login PlayFab: ${errorMessageText} (Código: ${errorCodeValue})`);
                     showLoading(false);
                 }
             });
@@ -351,7 +353,11 @@
                 });
 
                 if (!response.ok) {
-                    throw new Error(`Falha ao buscar dados do Google: ${response.statusText}`);
+                    // Se a busca no Google falhar, não impede o fluxo, apenas loga o erro.
+                    console.error(`Falha ao buscar dados do Google: ${response.status} ${response.statusText}`);
+                     const errorBody = await response.text(); // Tenta ler o corpo do erro
+                     console.error("Corpo da resposta do erro do Google:", errorBody);
+                    return; // Não prossegue com a atualização do PlayFab se o Google falhar
                 }
 
                 const googleProfile = await response.json();
@@ -362,6 +368,7 @@
                 // const googleEmail = googleProfile.email; // Pode ser usado se necessário
 
                 // Verifica se há necessidade de atualizar o perfil no PlayFab
+                // Compara mesmo se currentPlayFabProfile for null ou undefined
                 const needsUpdate =
                     (googleName && googleName !== currentPlayFabProfile?.DisplayName) ||
                     (googlePictureUrl && googlePictureUrl !== currentPlayFabProfile?.AvatarUrl);
@@ -374,27 +381,30 @@
                         // Não estamos atualizando o email aqui via Client API padrão
                     };
 
-                    PlayFab.ClientApi.UpdatePlayerProfile(updateRequest, (error, result) => {
-                        if (error) {
-                            console.error('Erro ao atualizar perfil PlayFab:', error);
-                            // Não mostra erro crítico, mas loga
-                        } else {
-                            console.log('Perfil PlayFab atualizado com sucesso!', result);
-                            // Atualiza a UI com os novos dados (opcional, pois GetPlayerProfile fará isso)
-                            // Se quiser atualização imediata da UI sem esperar o GetPlayerProfile:
+                    // ** CORREÇÃO SIMILAR APLICADA AQUI (UpdatePlayerProfile) **
+                    PlayFab.ClientApi.UpdatePlayerProfile(updateRequest, (responseObject, errorDetails) => {
+                         // Verifica se a chamada foi bem-sucedida (código 200)
+                        if (responseObject && responseObject.code === 200) {
+                            console.log('Perfil PlayFab atualizado com sucesso!', responseObject.data);
+                            // Atualiza a UI com os novos dados imediatamente
+                            // (GetPlayerProfile também será chamado depois, mas isso dá feedback mais rápido)
                             showUserUI({
                                 DisplayName: googleName,
-                                AvatarUrl: googlePictureUrl
-                                // Adicione outros campos se necessário
+                                AvatarUrl: googlePictureUrl,
+                                // Mantém outros campos do currentPlayFabProfile se existirem
+                                ...(currentPlayFabProfile || {}) // Mescla com perfil antigo se existir
                             });
+                        } else {
+                             console.error('Erro ao atualizar perfil PlayFab:', responseObject, errorDetails);
+                             // Não mostra erro crítico na UI, mas loga
                         }
                     });
                 } else {
-                    console.log('Perfil PlayFab já está atualizado com os dados do Google.');
+                    console.log('Perfil PlayFab já está atualizado com os dados do Google ou não há dados do Google para atualizar.');
                 }
 
             } catch (error) {
-                console.error('Erro ao buscar ou processar dados do Google:', error);
+                console.error('Erro durante a busca ou processamento dos dados do Google:', error);
                 // Não mostra erro crítico para o usuário, mas loga
             }
         }
@@ -407,6 +417,16 @@
             console.log('Carregando perfil do PlayFab...');
             showLoading(true); // Mostra loading enquanto busca o perfil
 
+            // Define o ticket de sessão ANTES de fazer a chamada GetPlayerProfile
+             if (!currentSessionTicket) {
+                console.error("Tentando carregar perfil sem SessionTicket.");
+                logout(); // Desloga se não houver ticket
+                showLoading(false);
+                return;
+            }
+            PlayFab.ClientApi.settings.sessionTicket = currentSessionTicket;
+
+
             const profileRequest = {
                 PlayFabId: currentPlayFabId, // Usa o ID armazenado
                 ProfileConstraints: {
@@ -416,30 +436,30 @@
                 }
             };
 
-            // Usa GetPlayerProfile para buscar os dados mais recentes
-            PlayFab.ClientApi.GetPlayerProfile(profileRequest, (error, result) => {
+            // ** CORREÇÃO SIMILAR APLICADA AQUI (GetPlayerProfile) **
+            PlayFab.ClientApi.GetPlayerProfile(profileRequest, (responseObject, errorDetails) => {
                  showLoading(false); // Esconde o loading
 
-                 if (error) {
-                     console.error('Erro ao buscar perfil PlayFab:', error);
+                 // Verifica se a chamada foi bem-sucedida (código 200) E se temos o perfil
+                 if (responseObject && responseObject.code === 200 && responseObject.data && responseObject.data.PlayerProfile) {
+                     console.log('Perfil PlayFab carregado:', responseObject.data.PlayerProfile);
+                     // Define o ticket de sessão novamente (redundante, mas seguro)
+                     PlayFab.ClientApi.settings.sessionTicket = currentSessionTicket;
+                     showUserUI(responseObject.data.PlayerProfile); // Exibe os dados do usuário
+                 } else {
+                     // --- Erro ---
+                     console.error('Erro ao buscar perfil PlayFab:', responseObject, errorDetails);
+                     const errorCodeValue = responseObject?.errorCode;
+
                      // Se o erro for de sessão inválida, força o logout
-                     if (error.errorCode === PlayFab.ErrorCode.InvalidSessionTicket || error.errorCode === PlayFab.ErrorCode.NotAuthenticated) {
+                     if (errorCodeValue === PlayFab.ErrorCode.InvalidSessionTicket || errorCodeValue === PlayFab.ErrorCode.NotAuthenticated) {
                          console.log('Sessão inválida ou expirada. Realizando logout.');
                          logout();
                      } else {
-                         showError(`Erro ao carregar perfil: ${error.errorMessage}`);
-                         showLoginUI(); // Volta para tela de login em caso de erro
+                         const errorMessageText = responseObject?.errorMessage || 'Erro desconhecido';
+                         showError(`Erro ao carregar perfil: ${errorMessageText}`);
+                         logout(); // Desloga em caso de outros erros ao carregar perfil
                      }
-                     return;
-                 }
-
-                 if (result && result.data && result.data.PlayerProfile) {
-                     console.log('Perfil PlayFab carregado:', result.data.PlayerProfile);
-                     showUserUI(result.data.PlayerProfile); // Exibe os dados do usuário
-                 } else {
-                     console.error('Resposta inesperada ao buscar perfil PlayFab:', result);
-                     showError('Não foi possível carregar os dados do perfil.');
-                     logout(); // Desloga se não conseguir carregar o perfil
                  }
             });
         }
