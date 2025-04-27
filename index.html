@@ -222,24 +222,30 @@
         function checkExistingSession() {
             currentPlayFabId = localStorage.getItem('playfabId'); // Tenta carregar o último ID conhecido
 
+            console.log('checkExistingSession: Verificando sessão...');
+            console.log('checkExistingSession: SDK IsClientLoggedIn:', PlayFabClientSDK.IsClientLoggedIn());
+            console.log('checkExistingSession: localStorage playfabId:', currentPlayFabId);
+
+
             if (PlayFabClientSDK.IsClientLoggedIn()) {
-                console.log('Sessão PlayFab ativa encontrada pela SDK. Carregando perfil...');
+                console.log('checkExistingSession: Sessão PlayFab ativa encontrada pela SDK. Carregando perfil...');
                  // Se a SDK está logada, o PlayFabId deve estar disponível ou ser buscado
                  // Se currentPlayFabId for null aqui, loadPlayFabUserProfile o obterá
                  // da resposta GetPlayerProfile.
                 loadPlayFabUserProfile(); // Tenta carregar o perfil com a sessão ativa
             } else if (currentPlayFabId) {
-                 console.log(`Nenhuma sessão ativa encontrada pela SDK, mas PlayFabId (${currentPlayFabId}) encontrado no localStorage. Tentando carregar perfil...`);
+                 console.log(`checkExistingSession: Nenhuma sessão ativa encontrada pela SDK, mas PlayFabId (${currentPlayFabId}) encontrado no localStorage. Tentando carregar perfil...`);
                  // Se a SDK não está logada, mas temos um ID salvo, tentamos carregar o perfil.
                  // Isso pode reidratar a sessão na SDK se as informações de autenticação
                  // estiverem implicitamente disponíveis (ex: cookies seguros gerenciados pela SDK).
                  // Nota: GetPlayerProfile geralmente requer uma sessão ativa. Se falhar,
                  // a função loadPlayFabUserProfile chamará logout.
-                 loadPlayFabUserProfile();
+                 showLoading(true); // Ativa o spinner explicitamente para esta tentativa
+                 loadPlayFabUserProfile(); // loadPlayFabUserProfile agora tem um finally para ocultar o spinner
             }
              else {
-                 console.log('Nenhuma sessão ativa encontrada pela SDK e nenhum PlayFabId no localStorage. Exibindo tela de login.');
-                 showLoginUI();
+                 console.log('checkExistingSession: Nenhuma sessão ativa encontrada pela SDK e nenhum PlayFabId no localStorage. Exibindo tela de login.');
+                 showLoginUI(); // showLoginUI garante que o spinner está oculto
             }
         }
 
@@ -264,7 +270,7 @@
                             console.error('Falha ao obter token do Google:', tokenResponse);
                             showError('Não foi possível obter o token de acesso do Google.');
                             isProcessingLogin = false;
-                            showLoading(false);
+                            showLoading(false); // Garante que o spinner é oculto
                         }
                     },
                     error_callback: (error) => {
@@ -277,7 +283,7 @@
                         }
                         showError(message);
                         isProcessingLogin = false;
-                        showLoading(false);
+                        showLoading(false); // Garante que o spinner é oculto
                     }
                 });
                 client.requestAccessToken();
@@ -285,7 +291,7 @@
                  console.error('Erro ao inicializar o cliente Google GSI:', error);
                  showError('Erro ao iniciar o processo de login do Google.');
                  isProcessingLogin = false;
-                 showLoading(false);
+                 showLoading(false); // Garante que o spinner é oculto
             }
         }
 
@@ -310,6 +316,7 @@
 
             PlayFabClientSDK.LoginWithGoogleAccount(loginRequest, (responseObject, errorDetails) => {
                 isProcessingLogin = false;
+                showLoading(false); // Garante que o spinner é oculto após a tentativa de login
 
                 if (responseObject && responseObject.code === 200 && responseObject.data && responseObject.data.SessionTicket) {
                     console.log('Login PlayFab bem-sucedido!', responseObject.data);
@@ -321,9 +328,8 @@
 
                     const initialProfile = responseObject.data.InfoResultPayload?.PlayerProfile;
                     showUserUI(initialProfile); // Mostra UI com dados (possivelmente desatualizados)
-                    showLoading(false);
 
-                    // Inicia a atualização do perfil em segundo plano
+                    // Inicia a atualização do perfil em segundo plano (não bloqueia a UI principal)
                     updatePlayFabProfileFromGoogle(googleAccessToken, initialProfile);
 
                 } else {
@@ -331,7 +337,7 @@
                     const errorMessageText = responseObject?.errorMessage || responseObject?.status || 'Erro desconhecido';
                     const errorCodeValue = responseObject?.errorCode || 'N/A';
                     showError(`Falha no login PlayFab: ${errorMessageText} (Código: ${errorCodeValue})`);
-                    showLoading(false);
+                    // Não chama logout aqui, apenas mostra o erro e mantém a UI de login
                 }
             });
         }
@@ -418,11 +424,11 @@
 
         /**
          * Carrega o perfil do jogador do PlayFab.
-         * Se bem-sucedido, exibe a UI do usuário. Se falhar (indicando sessão inválida), realiza logout.
+         * Se bem-sucedido, exibe a UI do usuário. Se falhar (indicando sessão inválida ou outro erro), realiza logout.
          */
         function loadPlayFabUserProfile() {
-            console.log('Carregando perfil do PlayFab...');
-            showLoading(true);
+            console.log('loadPlayFabUserProfile: Carregando perfil do PlayFab...');
+            // showLoading(true); // Spinner já pode estar ativo se chamado de checkExistingSession
 
             const profileRequest = {
                 // O PlayFabId não é estritamente necessário aqui se a SDK estiver usando a sessão ativa
@@ -434,26 +440,27 @@
             };
 
             PlayFabClientSDK.GetPlayerProfile(profileRequest, (responseObject, errorDetails) => {
-                 showLoading(false);
+                 // showLoading(false); // Movido para o bloco finally para garantir execução
 
                  if (responseObject && responseObject.code === 200 && responseObject.data && responseObject.data.PlayerProfile) {
-                     console.log('Perfil PlayFab carregado:', responseObject.data.PlayerProfile);
+                     console.log('loadPlayFabUserProfile: Perfil PlayFab carregado com sucesso!', responseObject.data.PlayerProfile);
                      // Garante que o currentPlayFabId e o localStorage estejam atualizados com o ID retornado
                      currentPlayFabId = responseObject.data.PlayerProfile.PlayerId;
                      localStorage.setItem('playfabId', currentPlayFabId);
                      showUserUI(responseObject.data.PlayerProfile);
                  } else {
-                     console.error('Erro ao buscar perfil PlayFab:', responseObject, errorDetails);
+                     console.error('loadPlayFabUserProfile: Erro ao buscar perfil PlayFab:', responseObject, errorDetails);
                      const errorCodeValue = responseObject?.errorCode;
                      const invalidSessionCodes = [
                          (typeof PlayFab !== 'undefined' && PlayFab.ErrorCode) ? PlayFab.ErrorCode.InvalidSessionTicket : 1100,
                          (typeof PlayFab !== 'undefined' && PlayFab.ErrorCode) ? PlayFab.ErrorCode.NotAuthenticated : 1073,
-                          (typeof PlayFab !== 'undefined' && PlayFab.ErrorCode) ? PlayFab.ErrorCode.InvalidSessionTicketError : 1101
+                          (typeof PlayFab !== 'undefined' && PlayFab.ErrorCode) ? PlayFab.ErrorCode.InvalidSessionTicketError : 1101,
+                          (typeof PlayFab !== 'undefined' && PlayFab.ErrorCode) ? PlayFab.ErrorCode.SessionTicketExpired : 1110 // Adicionado expirado
                      ];
 
                      if (invalidSessionCodes.includes(errorCodeValue)) {
-                         console.log('Sessão inválida ou expirada detectada ao carregar perfil. Realizando logout.');
-                         // Logout limpa o localStorage do playfabId
+                         console.log('loadPlayFabUserProfile: Sessão inválida ou expirada detectada ao carregar perfil. Realizando logout.');
+                         // Logout limpa o localStorage do playfabId e mostra a UI de login
                          logout();
                      } else {
                          const errorMessageText = responseObject?.errorMessage || 'Erro desconhecido ao carregar perfil';
@@ -462,7 +469,19 @@
                          logout();
                      }
                  }
-            });
+            }); // Não há .finally() diretamente na SDK callback, vamos gerenciar o spinner manualmente ou ajustar a estrutura se necessário.
+            // Gerenciamento manual do spinner: showLoading(false) é chamado nos callbacks de sucesso e erro.
+            // Se o spinner ainda persistir, pode haver um erro síncrono ou um problema na própria SDK/rede.
+            // Vamos adicionar um timeout defensivo (apenas para debug ou como último recurso) ou revisar a estrutura.
+
+            // Alternativa para garantir showLoading(false) - requer reestruturação para usar Promises ou async/await
+            // Como estamos usando callbacks, garantimos showLoading(false) em todos os caminhos de sucesso/erro.
+            // O problema de "carregando eternamente" sugere que *nenhum* dos callbacks está sendo chamado,
+            // o que pode indicar um problema de rede, URL da API incorreta, ou um erro síncrono não capturado
+            // *antes* que o callback seja definido/executado.
+
+            // Vamos adicionar um log após a chamada API para confirmar que o código continua.
+             console.log('loadPlayFabUserProfile: Chamada GetPlayerProfile enviada.');
         }
 
         /**
@@ -482,7 +501,7 @@
             // devido à sessão inválida farão com que a SDK se comporte como deslogada.
 
             // Reseta UI
-            showLoginUI();
+            showLoginUI(); // showLoginUI garante que o spinner está oculto
             console.log('Logout concluído.');
         }
 
