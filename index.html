@@ -89,11 +89,13 @@
             client.requestAccessToken();
         }
 
-        function loginWithPlayFab(googleAccessToken) {
-            if (!googleAccessToken) {
-                alert('Token do Google inválido');
-                return;
-            }
+       function loginWithPlayFab(googleAccessToken) {
+        const request = {
+            TitleId: titleId,
+            AccessToken: googleAccessToken,
+            CreateAccount: true
+        };
+
 
             const request = {
                 TitleId: titleId,
@@ -102,22 +104,22 @@
             };
 
             PlayFabClientSDK.LoginWithGoogleAccount(request, (error, result) => {
-                if (result?.data?.SessionTicket) {
-                    alert('Login bem-sucedido!');
-                    console.log('Dados da sessão:', result.data);
-                    // Redireciona para a página principal
-                    window.location.href = '/dashboard.html';
-                } else {
-                    const errorDetails = error?.data?.errorMessage || 
-                                      error?.errorMessage || 
-                                      error?.data?.errorDetails ||
-                                      'Erro desconhecido';
-                    
-                    console.error('Erro completo:', JSON.stringify(error, null, 2));
-                    alert(`Falha no login: ${errorDetails}`);
-                }
-            });
-        }
+            // Verifica tanto em error quanto em result
+            const response = error || result;
+            
+            if (response?.data?.SessionTicket) {
+                alert('Login bem-sucedido!');
+                console.log('Session Ticket:', response.data.SessionTicket);
+                window.location.href = '/dashboard.html';
+            } else {
+                const errorDetails = response?.data?.errorMessage || 
+                                   response?.errorMessage || 
+                                   JSON.stringify(response);
+                console.error('Erro completo:', response);
+                alert(`Falha no login: ${errorDetails}`);
+            }
+        });
+    }
     </script>
 </body>
 </html>
