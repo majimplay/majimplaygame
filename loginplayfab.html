@@ -1,160 +1,471 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login with Google - PlayFab</title>
+    <title>Login com Google - PlayFab</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        /* Estilos anteriores mantidos */
-        body { /* ... */ }
-        .login-container { /* ... */ }
-        .google-btn { /* ... */ }
-        .google-btn:hover { /* ... */ }
-        .google-icon { /* ... */ }
-
-        /* Novos estilos */
-        .user-panel {
-            display: none;
+        body {
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f3f4f6; /* Cinza claro Tailwind */
+        }
+        .container {
+            background-color: white;
+            padding: 2rem; /* Equivalente a p-8 */
+            border-radius: 0.5rem; /* Equivalente a rounded-lg */
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); /* Equivalente a shadow-md */
             text-align: center;
-            margin-top: 20px;
+            max-width: 400px;
+            width: 90%;
+        }
+        .google-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.75rem 1.5rem; /* Equivalente a py-3 px-6 */
+            border: 1px solid #d1d5db; /* Cinza Tailwind */
+            border-radius: 0.375rem; /* Equivalente a rounded-md */
+            background-color: white;
+            color: #374151; /* Cinza escuro Tailwind */
+            font-weight: 500; /* Equivalente a font-medium */
+            cursor: pointer;
+            transition: background-color 0.2s;
+            margin-top: 1rem; /* Equivalente a mt-4 */
+        }
+        .google-btn:hover {
+            background-color: #f9fafb; /* Cinza muito claro Tailwind */
+        }
+        .google-icon {
+            width: 1.25rem; /* Equivalente a w-5 */
+            height: 1.25rem; /* Equivalente a h-5 */
+            margin-right: 0.75rem; /* Equivalente a mr-3 */
+        }
+        .user-panel {
+            display: none; /* Oculto por padrão */
+            margin-top: 1.5rem; /* Equivalente a mt-6 */
+            padding-top: 1.5rem; /* Equivalente a pt-6 */
+            border-top: 1px solid #e5e7eb; /* Cinza claro Tailwind */
+        }
+        .user-avatar {
+            width: 5rem; /* Equivalente a w-20 */
+            height: 5rem; /* Equivalente a h-20 */
+            border-radius: 9999px; /* Equivalente a rounded-full */
+            margin: 0 auto 1rem; /* Centraliza e adiciona margem inferior */
+            object-fit: cover;
+            border: 2px solid #e5e7eb;
+        }
+         .user-avatar-placeholder {
+            width: 5rem; /* Equivalente a w-20 */
+            height: 5rem; /* Equivalente a h-20 */
+            border-radius: 9999px; /* Equivalente a rounded-full */
+            margin: 0 auto 1rem; /* Centraliza e adiciona margem inferior */
+            background-color: #d1d5db; /* Cinza Tailwind */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 2rem;
+            color: #6b7280; /* Cinza médio Tailwind */
+            border: 2px solid #e5e7eb;
         }
         .logout-btn {
-            background-color: #dc3545;
+            background-color: #ef4444; /* Vermelho Tailwind */
             color: white;
-            padding: 8px 16px;
-            border-radius: 4px;
+            padding: 0.5rem 1rem; /* Equivalente a py-2 px-4 */
+            border-radius: 0.375rem; /* Equivalente a rounded-md */
             cursor: pointer;
-            margin-top: 10px;
+            margin-top: 1rem; /* Equivalente a mt-4 */
+            border: none;
+            font-weight: 500;
+            transition: background-color 0.2s;
+        }
+        .logout-btn:hover {
+            background-color: #dc2626; /* Vermelho mais escuro Tailwind */
+        }
+        .loading-spinner {
+            border: 4px solid #f3f4f6; /* Cinza claro */
+            border-top: 4px solid #3b82f6; /* Azul */
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto 0; /* Centraliza e adiciona margem superior */
+            display: none; /* Oculto por padrão */
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
     </style>
 </head>
 <body>
-    <div class="login-container">
-        <h2>Login with Google</h2>
-        <button class="google-btn" onclick="handleGoogleLogin()">
-            <img src="https://developers.google.com/identity/images/g-logo.png" 
-                 alt="Google logo" 
+    <div class="container">
+        <h2 class="text-2xl font-semibold mb-4">Login com Google</h2>
+
+        <button id="google-login-btn" class="google-btn" onclick="handleGoogleLogin()">
+            <img src="https://developers.google.com/identity/images/g-logo.png"
+                 alt="Google logo"
                  class="google-icon">
-            Continue with Google
+            Continuar com Google
         </button>
-        
-        <div class="user-panel">
-            <h3>Bem-vindo, <span id="username"></span>!</h3>
+
+        <div id="user-panel" class="user-panel">
+             <div id="avatar-container">
+                 <div id="user-avatar-placeholder" class="user-avatar-placeholder">?</div>
+                 <img id="user-avatar" class="user-avatar" alt="User Avatar" style="display: none;">
+            </div>
+            <h3 class="text-xl font-medium mb-1">Bem-vindo(a)!</h3>
+            <p class="text-gray-600 mb-4">ID: <span id="user-playfab-id" class="font-mono text-sm"></span></p>
+            <p class="text-gray-800 text-lg font-semibold mb-4" id="user-display-name">Carregando...</p>
             <button class="logout-btn" onclick="logout()">Logout</button>
         </div>
+
+        <div id="loading-spinner" class="loading-spinner"></div>
+
+        <p id="error-message" class="text-red-500 mt-4" style="display: none;"></p>
     </div>
 
-    <!-- Scripts anteriores mantidos -->
     <script src="https://accounts.google.com/gsi/client"></script>
     <script src="https://download.playfab.com/PlayFabClientApi.js"></script>
 
     <script>
-        const titleId = '12DD32';
-        let isProcessing = false;
+        // --- Configuração ---
+        const PLAYFAB_TITLE_ID = '12DD32';
+        const GOOGLE_CLIENT_ID = '21514234895-keiqos567ifvs4hjkg3l1q5mvun8lri0.apps.googleusercontent.com';
 
-        // Verifica se já está logado ao carregar a página
+        // --- Elementos da UI ---
+        const googleLoginBtn = document.getElementById('google-login-btn');
+        const userPanel = document.getElementById('user-panel');
+        const userAvatar = document.getElementById('user-avatar');
+        const userAvatarPlaceholder = document.getElementById('user-avatar-placeholder');
+        const userDisplayName = document.getElementById('user-display-name');
+        const userPlayFabId = document.getElementById('user-playfab-id');
+        const loadingSpinner = document.getElementById('loading-spinner');
+        const errorMessage = document.getElementById('error-message');
+
+        // --- Estado da Aplicação ---
+        let isProcessingLogin = false;
+        let currentPlayFabId = null;
+        // Não precisamos mais armazenar o sessionTicket aqui, a SDK gerencia
+
+        // --- Inicialização ---
         window.onload = function() {
+            if (typeof PlayFab !== 'undefined' && PlayFab.settings) {
+                 PlayFab.settings.titleId = PLAYFAB_TITLE_ID;
+                 console.log('PlayFab Title ID configurado:', PlayFab.settings.titleId);
+            } else {
+                console.error("Objeto PlayFab ou PlayFab.settings não encontrado!");
+                showError("Erro crítico: Não foi possível inicializar o PlayFab.");
+                return;
+            }
             checkExistingSession();
         };
 
-        function checkExistingSession() {
-            const sessionTicket = localStorage.getItem('playfabSessionTicket');
-            if(sessionTicket) {
-                loadUserProfile(sessionTicket);
+        // --- Funções de UI ---
+        function showLoading(isLoading) {
+            loadingSpinner.style.display = isLoading ? 'block' : 'none';
+            googleLoginBtn.disabled = isLoading;
+        }
+
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.style.display = message ? 'block' : 'none';
+        }
+
+        function showLoginUI() {
+            googleLoginBtn.style.display = 'inline-flex';
+            userPanel.style.display = 'none';
+            showError('');
+        }
+
+        function showUserUI(profile) {
+            googleLoginBtn.style.display = 'none';
+            userPanel.style.display = 'block';
+            showError('');
+
+            userDisplayName.textContent = profile?.DisplayName || 'Nome não definido';
+            userPlayFabId.textContent = currentPlayFabId || 'N/A';
+
+            if (profile?.AvatarUrl) {
+                userAvatar.src = profile.AvatarUrl;
+                userAvatar.style.display = 'block';
+                userAvatarPlaceholder.style.display = 'none';
+                userAvatar.onerror = () => {
+                    userAvatar.style.display = 'none';
+                    userAvatarPlaceholder.style.display = 'flex';
+                    userAvatarPlaceholder.textContent = profile.DisplayName ? profile.DisplayName.charAt(0).toUpperCase() : '?';
+                };
+            } else {
+                userAvatar.style.display = 'none';
+                userAvatarPlaceholder.style.display = 'flex';
+                userAvatarPlaceholder.textContent = profile?.DisplayName ? profile.DisplayName.charAt(0).toUpperCase() : '?';
             }
         }
 
-        function handleGoogleLogin() {
-            if(isProcessing) return;
-            isProcessing = true;
-            
-            const client = google.accounts.oauth2.initTokenClient({
-                client_id: '21514234895-keiqos567ifvs4hjkg3l1q5mvun8lri0.apps.googleusercontent.com',
-                scope: 'email profile openid',
-                callback: (response) => {
-                    if (response.access_token) {
-                        loginWithPlayFab(response.access_token);
-                    } else {
-                        alert('Falha ao obter token do Google');
-                        isProcessing = false;
-                    }
-                },
-                error: (error) => {
-                    console.error('Erro Google:', error);
-                    alert('Erro: ' + error.message);
-                    isProcessing = false;
-                }
-            });
-            client.requestAccessToken();
+        // --- Lógica de Autenticação e PlayFab ---
+
+        /**
+         * Verifica se existe uma sessão PlayFab válida reconhecida pela SDK.
+         */
+        function checkExistingSession() {
+            // ** CORREÇÃO: Verifica se a SDK considera o cliente logado **
+            if (PlayFabClientSDK.IsClientLoggedIn()) {
+                console.log('Sessão PlayFab ativa encontrada pela SDK. Validando perfil...');
+                // Pega o PlayFabId do localStorage (ainda útil para exibição)
+                currentPlayFabId = localStorage.getItem('playfabId');
+                loadPlayFabUserProfile();
+            } else {
+                 // Limpa qualquer resquício de sessão antiga no localStorage se a SDK não reconhecer
+                 localStorage.removeItem('playfabSessionTicket'); // Pode remover isso eventualmente
+                 localStorage.removeItem('playfabId');
+                 console.log('Nenhuma sessão ativa encontrada pela SDK. Exibindo tela de login.');
+                 showLoginUI();
+            }
         }
 
+        /**
+         * Inicia o fluxo de login com o Google.
+         */
+        function handleGoogleLogin() {
+            if (isProcessingLogin) return;
+            isProcessingLogin = true;
+            showLoading(true);
+            showError('');
+
+            try {
+                const client = google.accounts.oauth2.initTokenClient({
+                    client_id: GOOGLE_CLIENT_ID,
+                    scope: 'email profile openid',
+                    callback: (tokenResponse) => {
+                        if (tokenResponse.access_token) {
+                            console.log('Token do Google obtido com sucesso.');
+                            loginWithPlayFab(tokenResponse.access_token);
+                        } else {
+                            console.error('Falha ao obter token do Google:', tokenResponse);
+                            showError('Não foi possível obter o token de acesso do Google.');
+                            isProcessingLogin = false;
+                            showLoading(false);
+                        }
+                    },
+                    error_callback: (error) => {
+                        console.error('Erro no fluxo de login do Google:', error);
+                        let message = 'Ocorreu um erro durante o login com o Google.';
+                        if (error?.type === 'popup_closed') {
+                            message = 'A janela de login do Google foi fechada.';
+                        } else if (error?.message) {
+                            message += ` Detalhes: ${error.message}`;
+                        }
+                        showError(message);
+                        isProcessingLogin = false;
+                        showLoading(false);
+                    }
+                });
+                client.requestAccessToken();
+            } catch (error) {
+                 console.error('Erro ao inicializar o cliente Google GSI:', error);
+                 showError('Erro ao iniciar o processo de login do Google.');
+                 isProcessingLogin = false;
+                 showLoading(false);
+            }
+        }
+
+        /**
+         * Realiza o login no PlayFab usando o token de acesso do Google.
+         * @param {string} googleAccessToken O token de acesso obtido do Google.
+         */
         function loginWithPlayFab(googleAccessToken) {
-            const request = {
-                TitleId: titleId,
+            console.log('Tentando login no PlayFab com token do Google...');
+
+            const loginRequest = {
                 AccessToken: googleAccessToken,
                 CreateAccount: true,
                 InfoRequestParameters: {
-                    GetPlayerProfile: true
+                    GetPlayerProfile: true,
+                    ProfileConstraints: {
+                       ShowDisplayName: true,
+                       ShowAvatarUrl: true
+                    }
                 }
             };
 
-            PlayFabClientSDK.LoginWithGoogleAccount(request, (error, result) => {
-                const response = error || result;
-                isProcessing = false;
+            PlayFabClientSDK.LoginWithGoogleAccount(loginRequest, (responseObject, errorDetails) => {
+                isProcessingLogin = false;
 
-                if (response?.data?.SessionTicket) {
-                    // Salva os dados no localStorage
-                    localStorage.setItem('playfabSessionTicket', response.data.SessionTicket);
-                    localStorage.setItem('playfabUserData', JSON.stringify(response.data));
+                if (responseObject && responseObject.code === 200 && responseObject.data && responseObject.data.SessionTicket) {
+                    console.log('Login PlayFab bem-sucedido!', responseObject.data);
+                    currentPlayFabId = responseObject.data.PlayFabId;
 
-                    // Atualiza a UI
-                    showUserInfo(response.data);
+                    // Armazena o PlayFabId para exibição e referência futura
+                    localStorage.setItem('playfabId', currentPlayFabId);
+                    // Não precisa mais armazenar o sessionTicket, a SDK gerencia
+
+                    const initialProfile = responseObject.data.InfoResultPayload?.PlayerProfile;
+                    showUserUI(initialProfile); // Mostra UI com dados (possivelmente desatualizados)
+                    showLoading(false);
+
+                    // Inicia a atualização do perfil em segundo plano
+                    updatePlayFabProfileFromGoogle(googleAccessToken, initialProfile);
+
                 } else {
-                    const errorMsg = response?.data?.errorMessage || 'Erro desconhecido';
-                    alert(`Falha: ${errorMsg}`);
+                    console.error('Erro no login PlayFab com Google:', responseObject, errorDetails);
+                    const errorMessageText = responseObject?.errorMessage || responseObject?.status || 'Erro desconhecido';
+                    const errorCodeValue = responseObject?.errorCode || 'N/A';
+                    showError(`Falha no login PlayFab: ${errorMessageText} (Código: ${errorCodeValue})`);
+                    showLoading(false);
                 }
             });
         }
 
-        function showUserInfo(userData) {
-            document.querySelector('.google-btn').style.display = 'none';
-            const userPanel = document.querySelector('.user-panel');
-            const usernameSpan = document.getElementById('username');
+         /**
+         * Busca informações do usuário no Google e atualiza o perfil PlayFab (Nome e Avatar).
+         * @param {string} googleAccessToken O token de acesso do Google.
+         * @param {object} currentPlayFabProfile O perfil PlayFab atual obtido no login.
+         */
+        async function updatePlayFabProfileFromGoogle(googleAccessToken, currentPlayFabProfile) {
+            console.log('Buscando informações do perfil no Google para atualização...');
+            let googleProfile;
+            try {
+                const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                    headers: {
+                        'Authorization': `Bearer ${googleAccessToken}`
+                    }
+                });
 
-            // Tenta obter o nome do perfil
-            const username = userData?.InfoResultPayload?.PlayerProfile?.DisplayName || 
-                           userData?.EntityToken?.Entity?.Id || 
-                           'Usuário';
+                if (!response.ok) {
+                    console.error(`Falha ao buscar dados do Google: ${response.status} ${response.statusText}`);
+                     const errorBody = await response.text();
+                     console.error("Corpo da resposta do erro do Google:", errorBody);
+                    return; // Aborta a atualização se não conseguir dados do Google
+                }
+                googleProfile = await response.json();
+                console.log('Perfil do Google obtido para atualização:', googleProfile);
 
-            usernameSpan.textContent = username;
-            userPanel.style.display = 'block';
+            } catch (error) {
+                console.error('Erro durante a busca dos dados do Google:', error);
+                return; // Aborta a atualização em caso de erro de rede/fetch
+            }
+
+            const googleName = googleProfile.name;
+            const googlePictureUrl = googleProfile.picture;
+
+            // Verifica se o nome precisa ser atualizado
+            if (googleName && googleName !== currentPlayFabProfile?.DisplayName) {
+                console.log('Atualizando DisplayName no PlayFab...');
+                // ** CORREÇÃO: Usando UpdateUserTitleDisplayName **
+                PlayFabClientSDK.UpdateUserTitleDisplayName({ DisplayName: googleName }, (responseObject, errorDetails) => {
+                    if (responseObject && responseObject.code === 200) {
+                        console.log('DisplayName atualizado com sucesso!', responseObject.data);
+                        // Atualiza a UI imediatamente com o novo nome
+                        userDisplayName.textContent = googleName;
+                        // Atualiza também o placeholder do avatar caso não haja imagem
+                        if (!userAvatar.src || userAvatar.style.display === 'none') {
+                             userAvatarPlaceholder.textContent = googleName.charAt(0).toUpperCase();
+                        }
+                    } else {
+                         console.error('Erro ao atualizar DisplayName:', responseObject, errorDetails);
+                         // Poderia mostrar um erro não crítico aqui se desejado
+                    }
+                });
+            } else {
+                 console.log('DisplayName do PlayFab já está atualizado ou não há nome no perfil Google.');
+            }
+
+             // Verifica se a URL do avatar precisa ser atualizada
+            if (googlePictureUrl && googlePictureUrl !== currentPlayFabProfile?.AvatarUrl) {
+                console.log('Atualizando AvatarUrl no PlayFab...');
+                 // ** CORREÇÃO: Usando UpdateAvatarUrl **
+                PlayFabClientSDK.UpdateAvatarUrl({ ImageUrl: googlePictureUrl }, (responseObject, errorDetails) => {
+                     if (responseObject && responseObject.code === 200) {
+                        console.log('AvatarUrl atualizado com sucesso!');
+                         // Atualiza a UI imediatamente com o novo avatar
+                        userAvatar.src = googlePictureUrl;
+                        userAvatar.style.display = 'block';
+                        userAvatarPlaceholder.style.display = 'none';
+                        userAvatar.onerror = () => { // Define o fallback novamente
+                            userAvatar.style.display = 'none';
+                            userAvatarPlaceholder.style.display = 'flex';
+                            userAvatarPlaceholder.textContent = (googleName || currentPlayFabProfile?.DisplayName || '?').charAt(0).toUpperCase();
+                        };
+                    } else {
+                         console.error('Erro ao atualizar AvatarUrl:', responseObject, errorDetails);
+                    }
+                });
+            } else {
+                 console.log('AvatarUrl do PlayFab já está atualizado ou não há imagem no perfil Google.');
+            }
         }
 
-        function loadUserProfile(sessionTicket) {
-            const request = {
-                SessionTicket: sessionTicket,
-                InfoRequestParameters: {
-                    GetPlayerProfile: true
+
+        /**
+         * Carrega o perfil do jogador do PlayFab. Assume que IsClientLoggedIn() já foi verificado.
+         */
+        function loadPlayFabUserProfile() {
+            console.log('Carregando perfil do PlayFab...');
+            showLoading(true);
+
+            const profileRequest = {
+                PlayFabId: currentPlayFabId, // Pega o ID armazenado
+                ProfileConstraints: {
+                    ShowDisplayName: true,
+                    ShowAvatarUrl: true
                 }
             };
 
-            PlayFabClientSDK.GetPlayerProfile(request, (error, result) => {
-                if(result?.data?.PlayerProfile) {
-                    showUserInfo({
-                        InfoResultPayload: {
-                            PlayerProfile: result.data.PlayerProfile
-                        }
-                    });
-                }
+            PlayFabClientSDK.GetPlayerProfile(profileRequest, (responseObject, errorDetails) => {
+                 showLoading(false);
+
+                 if (responseObject && responseObject.code === 200 && responseObject.data && responseObject.data.PlayerProfile) {
+                     console.log('Perfil PlayFab carregado:', responseObject.data.PlayerProfile);
+                     // Atualiza o ID caso tenha sido perdido (embora não deva acontecer neste fluxo)
+                     currentPlayFabId = responseObject.data.PlayerProfile.PlayerId;
+                     localStorage.setItem('playfabId', currentPlayFabId); // Garante que está salvo
+                     showUserUI(responseObject.data.PlayerProfile);
+                 } else {
+                     console.error('Erro ao buscar perfil PlayFab:', responseObject, errorDetails);
+                     const errorCodeValue = responseObject?.errorCode;
+                     const invalidSessionCodes = [
+                         (typeof PlayFab !== 'undefined' && PlayFab.ErrorCode) ? PlayFab.ErrorCode.InvalidSessionTicket : 1100,
+                         (typeof PlayFab !== 'undefined' && PlayFab.ErrorCode) ? PlayFab.ErrorCode.NotAuthenticated : 1073
+                     ];
+
+                     if (invalidSessionCodes.includes(errorCodeValue)) {
+                         console.log('Sessão inválida ou expirada detectada ao carregar perfil. Realizando logout.');
+                         logout(); // Força logout se a sessão for inválida
+                     } else {
+                         const errorMessageText = responseObject?.errorMessage || 'Erro desconhecido ao carregar perfil';
+                         showError(`Erro ao carregar perfil: ${errorMessageText}`);
+                         // Considera deslogar aqui também, pois não se sabe o estado
+                         logout();
+                     }
+                 }
             });
         }
 
+        /**
+         * Realiza o logout, limpando o localStorage e redefinindo a UI.
+         */
         function logout() {
-            localStorage.removeItem('playfabSessionTicket');
-            localStorage.removeItem('playfabUserData');
-            document.querySelector('.google-btn').style.display = 'flex';
-            document.querySelector('.user-panel').style.display = 'none';
+            console.log('Realizando logout...');
+            // Limpa dados locais que usamos
+            localStorage.removeItem('playfabId');
+            // localStorage.removeItem('playfabSessionTicket'); // Opcional limpar, a SDK não deve usar mais
+
+            // Reseta variáveis de estado
+            currentPlayFabId = null;
+
+            // Informa a SDK para limpar a sessão (se houver função para isso - opcional)
+            // PlayFabClientSDK.ForgetAllCredentials(); // Exemplo, verificar nome correto se existir
+
+            // Reseta UI
+            showLoginUI();
+            console.log('Logout concluído.');
         }
+
     </script>
 </body>
 </html>
