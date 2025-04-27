@@ -153,7 +153,7 @@
     <div id="message-box" class="message-box"></div>
 
 
-    <script src="https://accounts.google.com/gsi/client"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="https://download.playfab.com/PlayFabClientApi.js"></script>
 
     <script>
@@ -182,31 +182,66 @@
             if (typeof PlayFab !== 'undefined' && PlayFab.settings) {
                  PlayFab.settings.titleId = PLAYFAB_TITLE_ID;
                  console.log('PlayFab Title ID configurado:', PlayFab.settings.titleId);
+                 initializeGoogleSignIn(); // Inicializa o Google Sign-In GSI
+                 checkExistingSession(); // Inicia a verificação de sessão
             } else {
                 console.error("Objeto PlayFab ou PlayFab.settings não encontrado!");
                 showMessage("Erro crítico: Não foi possível inicializar o PlayFab.", 'error'); // Usa a caixa de mensagem
-                return;
             }
-            checkExistingSession(); // Inicia a verificação de sessão
         };
 
         /**
-         * Callback chamada pela Google Identity Services após obter a credencial (OAuth 2.0 Token).
-         * Esta função é o callback direto da chamada client.requestAccessToken().
-         * @param {object} tokenResponse O objeto de resposta do Google OAuth 2.0.
+         * Inicializa a nova Google Identity Services Library para login automático e manual.
          */
-        function handleGoogleCredentialResponse(tokenResponse) {
-            console.log('Resposta do Google OAuth 2.0 recebida:', tokenResponse);
-            if (tokenResponse.access_token) {
-                console.log('Access Token do Google obtido (primeiros 20 chars):', tokenResponse.access_token.substring(0, 20) + '...'); // Log parcial do token
-                // Usamos o Access Token para autenticar no PlayFab
-                loginWithPlayFab(tokenResponse.access_token);
+        function initializeGoogleSignIn() {
+             if (typeof google === 'undefined' || typeof google.accounts === 'undefined' || typeof google.accounts.id === 'undefined') {
+                 console.error('Google Identity Services Library não carregada.');
+                 showMessage('Erro ao carregar o serviço de login do Google.', 'error'); // Usa a caixa de mensagem
+                 return;
+             }
+
+             google.accounts.id.initialize({
+                 client_id: GOOGLE_CLIENT_ID,
+                 callback: handleGoogleCredentialResponse, // Função chamada após obter a credencial do Google
+                 auto_select: false // Desabilita auto-login imediato na carga inicial. Usaremos prompt() em checkExistingSession.
+             });
+
+             console.log('Google Identity Services inicializado.');
+        }
+
+
+        /**
+         * Callback chamada pela Google Identity Services após obter a credencial (ID Token).
+         * Esta função é o callback tanto para o login automático (prompt) quanto manual.
+         * @param {object} response O objeto de resposta da Google Identity Services.
+         */
+        function handleGoogleCredentialResponse(response) {
+            console.log('Resposta da Google Identity Services recebida:', response);
+            if (response.credential) {
+                // O 'credential' aqui é um ID token JWT
+                console.log('ID Token do Google obtido (primeiros 20 chars):', response.credential.substring(0, 20) + '...'); // Log parcial do token
+                // Usamos o ID token para autenticar no PlayFab
+                loginWithPlayFab(response.credential);
             } else {
-                console.error('Falha ao obter Access Token do Google:', tokenResponse);
-                showError('Não foi possível obter o token de acesso do Google.');
-                isProcessingLogin = false;
-                showLoading(false);
-                showLoginUI(); // Mostra a UI de login se falhar
+                console.error('Falha ao obter credencial do Google:', response);
+                // Se a resposta não tiver credencial, pode ser um cancelamento ou erro.
+                // Se o spinner estiver ativo, desativa.
+                 if (loadingSpinner.style.display === 'block') {
+                     console.log('Desativando spinner após falha/cancelamento da GSI.');
+                     showLoading(false);
+                 }
+                 // Se está processando login (clique no botão ou tentativa silenciosa), mostra erro.
+                 if (isProcessingLogin) {
+                     showMessage('Não foi possível obter o token de acesso do Google.', 'error'); // Usa a caixa de mensagem
+                     isProcessingLogin = false;
+                     // Se a tentativa foi silenciosa e falhou, mostramos a UI de login.
+                     // Se foi manual, a UI de login já está visível.
+                     showLoginUI();
+                 } else {
+                    // Caso de falha no prompt automático em checkExistingSession
+                    console.log('handleGoogleCredentialResponse: Falha no prompt automático.');
+                    showLoginUI(); // Mostra a UI de login se o auto-select falhou
+                 }
             }
         }
 
@@ -243,10 +278,13 @@
             googleLoginBtn.style.display = 'inline-flex';
             userPanel.style.display = 'none';
             showError(''); // Limpa mensagem de erro
-            // Limpa os campos de usuário ao mostrar a UI de login
+            // Limpa os campos de usuário ao mostrar a UI de login,
+            // mas mantém o PlayFabId se ele estiver no localStorage
             userDisplayName.textContent = 'Carregando...';
-            // ** MODIFICAÇÃO: Não limpa o userPlayFabId aqui **
-            // userPlayFabId.textContent = '';
+            // ** MODIFICAÇÃO: Não limpa userPlayFabId se currentPlayFabId existir **
+            if (!currentPlayFabId) {
+                 userPlayFabId.textContent = '';
+            }
             userAvatar.style.display = 'none';
             userAvatarPlaceholder.style.display = 'flex';
             userAvatarPlaceholder.textContent = '?';
@@ -282,8 +320,7 @@
         // --- Lógica de Autenticação e PlayFab ---
 
         /**
-         * Verifica se a SDK do PlayFab considera o cliente logado.
-         * Se sim, tenta carregar o perfil. Se não, exibe a UI de login.
+         * Verifica se há um PlayFabId salvo localmente e tenta re-autenticar usando o Google GSI auto-select.
          */
         function checkExistingSession() {
             // Tenta carregar o PlayFabId do localStorage primeiro
@@ -291,46 +328,56 @@
 
             console.log('checkExistingSession: Verificando sessão...');
             console.log('checkExistingSession: localStorage playfabId:', currentPlayFabId);
-            console.log('checkExistingSession: PlayFabClientSDK.IsClientLoggedIn():', PlayFabClientSDK.IsClientLoggedIn());
+            // console.log('checkExistingSession: PlayFabClientSDK.IsClientLoggedIn():', PlayFabClientSDK.IsClientLoggedIn()); // Não vamos depender apenas disso para iniciar o fluxo GSI
 
 
-            // ** MODIFICAÇÃO PRINCIPAL AQUI **
-            if (PlayFabClientSDK.IsClientLoggedIn()) {
-                console.log('checkExistingSession: PlayFabClientSDK.IsClientLoggedIn() é true. Sessão ativa encontrada pela SDK.');
-                // Se a SDK está logada, tenta carregar o perfil.
-                // O PlayFabId já deve estar no localStorage de um login anterior.
-                if (currentPlayFabId) {
-                     console.log(`checkExistingSession: PlayFabId (${currentPlayFabId}) encontrado no localStorage. Carregando perfil.`);
-                      // Mostra o ID imediatamente enquanto carrega o resto do perfil
-                     userPlayFabId.textContent = currentPlayFabId;
-                } else {
-                     console.log('checkExistingSession: PlayFabClientSDK.IsClientLoggedIn() é true, mas nenhum playfabId no localStorage. Isso é inesperado, mas a SDK tem a sessão. Carregando perfil.');
-                     // Continua mesmo sem o ID no localStorage, o perfil trará o ID.
-                }
-                showLoading(true); // Mostra spinner enquanto carrega o perfil
-                loadPlayFabUserProfile(); // Carrega o perfil do usuário logado
+            if (currentPlayFabId) {
+                console.log(`checkExistingSession: PlayFabId (${currentPlayFabId}) encontrado no localStorage. Tentando login automático com Google GSI...`);
+                // Mostra o ID imediatamente enquanto tenta re-autenticar
+                userPlayFabId.textContent = currentPlayFabId;
+                showLoading(true); // Mostra spinner enquanto tenta login automático
+
+                 if (typeof google !== 'undefined' && typeof google.accounts !== 'undefined' && typeof google.accounts.id !== 'undefined') {
+                     // Usa google.accounts.id.prompt() para tentar um login silencioso/one-tap.
+                     // O callback handleGoogleCredentialResponse será chamado se uma credencial for obtida.
+                     // A notificação permite saber se o prompt foi dispensado sem credencial.
+                     console.log('checkExistingSession: Chamando google.accounts.id.prompt() para login automático...');
+                     google.accounts.id.prompt((notification) => {
+                         console.log('checkExistingSession: Google prompt notification:', notification);
+                         // Se o prompt for dispensado ou pulado, o login automático não ocorreu com sucesso.
+                         // handleGoogleCredentialResponse NÃO será chamado neste caso com uma credencial.
+                         if (notification.isDismissed || notification.isSkipped) {
+                             console.log('checkExistingSession: Google prompt dismissed ou skipped. Login automático falhou.');
+                             // Se o spinner estiver ativo (foi ativado em checkExistingSession), desativa e mostra a UI de login.
+                             if (loadingSpinner.style.display === 'block') {
+                                console.log('checkExistingSession: Desativando spinner após Google prompt dismissed/skipped.');
+                                showLoading(false);
+                                // A UI de login já deve estar visível por causa do PlayFabId no localStorage,
+                                // mas garantimos que o estado está correto.
+                                // showLoginUI(); // Não chama showLoginUI aqui para não limpar o PlayFabId da UI
+                                showMessage('Sessão expirada ou perdida. Faça login novamente.', 'error'); // Informa o usuário
+                             }
+                         }
+                         // Se a notificação for 'granted', handleGoogleCredentialResponse já foi/será chamado com a credencial.
+                         // Se for 'denied', handleGoogleCredentialResponse será chamado com um erro (sem credencial).
+                     });
+                 } else {
+                     console.error('checkExistingSession: Google Identity Services Library não inicializada para login automático.');
+                     showMessage('Erro no serviço de login do Google.', 'error');
+                     showLoading(false);
+                     showLoginUI(); // Fallback para UI de login padrão
+                 }
+
+
             } else {
-                console.log('checkExistingSession: PlayFabClientSDK.IsClientLoggedIn() é false.');
-                if (currentPlayFabId) {
-                    console.log(`checkExistingSession: PlayFabClientSDK.IsClientLoggedIn() é false, mas PlayFabId (${currentPlayFabId}) encontrado no localStorage. Sessão provavelmente expirou ou foi perdida.`);
-                    // ** MODIFICAÇÃO: NÃO REMOVE o playfabId do localStorage aqui **
-                    // localStorage.removeItem('playfabId'); // Removido
-                    // currentPlayFabId = null; // Removido
-                    // Mantém o PlayFabId na UI se ele estava no localStorage
-                    userPlayFabId.textContent = currentPlayFabId;
-                    showLoginUI(); // Mostra a UI de login
-                    showMessage('Sessão expirada ou perdida. Faça login novamente.', 'error'); // Informa o usuário
-                } else {
-                    console.log('checkExistingSession: Nenhuma sessão ativa encontrada pela SDK e nenhum playfabId no localStorage. Exibindo tela de login.');
-                    // Nenhuma indicação de login anterior, mostra UI de login padrão
-                    showLoginUI();
-                }
+                console.log('checkExistingSession: Nenhum PlayFabId no localStorage. Exibindo tela de login.');
+                // Nenhuma indicação de login anterior, mostra UI de login padrão
+                showLoginUI();
             }
         }
 
         /**
-         * Inicia o fluxo de login com o Google usando a biblioteca GSI OAuth 2.0.
-         * Chamado pelo clique no botão.
+         * Inicia o fluxo de login manual com o Google (chamado pelo clique no botão).
          */
         function handleGoogleLogin() {
             if (isProcessingLogin) return;
@@ -338,52 +385,38 @@
             showLoading(true);
             showError(''); // Limpa mensagem de erro
 
-             if (typeof google === 'undefined' || typeof google.accounts === 'undefined' || typeof google.accounts.oauth2 === 'undefined') {
-                 console.error('Google Identity Services Library (OAuth 2.0) não carregada.');
+             if (typeof google === 'undefined' || typeof google.accounts === 'undefined' || typeof google.accounts.id === 'undefined') {
+                 console.error('Google Identity Services Library não inicializada para login manual.');
                  showMessage('Erro no serviço de login do Google.', 'error'); // Usa a caixa de mensagem
                  isProcessingLogin = false;
                  showLoading(false);
                  return;
              }
 
-            console.log('Iniciando fluxo de login manual com Google via google.accounts.oauth2.initTokenClient()...');
-            // Usa o fluxo OAuth 2.0 para obter um Access Token
-            const client = google.accounts.oauth2.initTokenClient({
-                client_id: GOOGLE_CLIENT_ID,
-                scope: 'email profile openid', // Escopos necessários
-                callback: handleGoogleCredentialResponse, // Função chamada após obter o token
-                error_callback: (error) => { // Callback para erros do fluxo GSI OAuth 2.0
-                    console.error('Erro no fluxo de login do Google:', error);
-                    let message = 'Ocorreu um erro durante o login com o Google.';
-                    if (error?.type === 'popup_closed') {
-                        message = 'A janela de login do Google foi fechada.';
-                    } else if (error?.message) {
-                        message += ` Detalhes: ${error.message}`;
-                    }
-                    showError(message); // Exibe erro na UI
-                    showMessage(`Login Google falhou: ${message}`, 'error'); // Usa caixa de mensagem
-                    isProcessingLogin = false;
-                    showLoading(false);
-                    showLoginUI(); // Mostra a UI de login
-                }
-            });
-            client.requestAccessToken(); // Solicita o token de acesso
+            console.log('Iniciando fluxo de login manual com Google via google.accounts.id.prompt()...');
+            // Chama o prompt GSI. O fluxo continua em handleGoogleCredentialResponse.
+            google.accounts.id.prompt();
+            // Nota: A notificação do prompt para um login manual (clique no botão)
+            // geralmente não indica "dismissed" ou "skipped" a menos que o usuário
+            // feche explicitamente a janela ou popup do Google. O callback
+            // handleGoogleCredentialResponse tratará o sucesso ou falha.
         }
 
+
         /**
-         * Realiza o login no PlayFab usando o Access Token do Google.
-         * @param {string} googleAccessToken O Access Token obtido do Google.
+         * Realiza o login no PlayFab usando o ID Token do Google (credential).
+         * @param {string} googleIdToken O ID Token JWT obtido do Google.
          */
-        function loginWithPlayFab(googleAccessToken) {
-            console.log('Tentando login no PlayFab com Access Token do Google...');
-            console.log('Access Token enviado para PlayFab (primeiros 20 chars):', googleAccessToken.substring(0, 20) + '...'); // Log parcial do token enviado
+        function loginWithPlayFab(googleIdToken) {
+            console.log('Tentando login no PlayFab com ID Token do Google...');
+            console.log('ID Token enviado para PlayFab (primeiros 20 chars):', googleIdToken.substring(0, 20) + '...'); // Log parcial do token enviado
 
              // Certifica-se que o spinner está ativo
              showLoading(true);
 
             const loginRequest = {
-                // PlayFab Client SDK LoginWithGoogleAccount espera o Access Token no campo AccessToken
-                AccessToken: googleAccessToken,
+                // PlayFab Client SDK LoginWithGoogleAccount espera o ID Token JWT no campo AccessToken
+                AccessToken: googleIdToken,
                 CreateAccount: true, // Cria a conta PlayFab se não existir
                 InfoRequestParameters: { // Solicita informações do perfil no login
                     GetPlayerProfile: true,
@@ -394,6 +427,7 @@
                 }
             };
 
+            // ** CORREÇÃO: Usa LoginWithGoogleAccount com o ID Token **
             PlayFabClientSDK.LoginWithGoogleAccount(loginRequest, (responseObject, errorDetails) => {
                 isProcessingLogin = false;
                 showLoading(false); // Garante que o spinner é oculto após a tentativa de login
@@ -409,9 +443,6 @@
                     const initialProfile = responseObject.data.InfoResultPayload?.PlayerProfile;
                     showUserUI(initialProfile); // Mostra UI com dados do perfil obtido no login
                     showMessage('Login bem-sucedido!', 'success'); // Mensagem de sucesso
-
-                    // Opcional: Buscar informações mais recentes do Google e atualizar PlayFab
-                    // updatePlayFabProfileFromGoogle(googleAccessToken, initialProfile);
 
                 } else {
                     console.error('Erro no login PlayFab com Google:', responseObject, errorDetails);
@@ -434,12 +465,12 @@
 
 
         /**
-         * Carrega o perfil do jogador do PlayFab. Assume que IsClientLoggedIn() já foi verificado.
-         * Chamada após checkExistingSession() ou login bem-sucedido.
+         * Carrega o perfil do jogador do PlayFab. Assume que IsClientLoggedIn() já foi verificado (pela SDK interna após login).
+         * Chamada após checkExistingSession() (se o login automático for bem-sucedido) ou login manual bem-sucedido.
          */
         function loadPlayFabUserProfile() {
             console.log('Carregando perfil do PlayFab...');
-            showLoading(true);
+            // showLoading(true); // Já está ativo pelo checkExistingSession ou login manual
 
             // Não precisamos passar o PlayFabId se a SDK já estiver logada.
             // A SDK usa o SessionTicket interno para identificar o jogador.
@@ -452,7 +483,7 @@
 
             // Usa GetPlayerProfile sem PlayFabId explícito quando logado
             PlayFabClientSDK.GetPlayerProfile(profileRequest, (responseObject, errorDetails) => {
-                 showLoading(false);
+                 showLoading(false); // Desativa spinner após a resposta
 
                  if (responseObject && responseObject.code === 200 && responseObject.data && responseObject.data.PlayerProfile) {
                      console.log('Perfil PlayFab carregado:', responseObject.data.PlayerProfile);
@@ -504,25 +535,22 @@
             localStorage.removeItem('playfabId');
             currentPlayFabId = null;
 
-            // Tenta limpar a sessão na SDK do PlayFab (não é estritamente necessário,
-            // mas pode ajudar a garantir que IsClientLoggedIn() retorne false)
+            // Tenta limpar a sessão na SDK do PlayFab
             if (typeof PlayFabClientSDK !== 'undefined' && PlayFabClientSDK.ForgetAllCredentials) {
                  PlayFabClientSDK.ForgetAllCredentials();
                  console.log('Credenciais PlayFab limpas pela SDK.');
             }
 
 
-            // Tenta fazer logout do Google também, se a biblioteca estiver carregada
+            // Tenta desabilitar o auto-select do Google GSI
              if (typeof google !== 'undefined' && typeof google.accounts !== 'undefined' && typeof google.accounts.id !== 'undefined') {
                  console.log('Tentando disableAutoSelect do Google...');
-                 // disableAutoSelect impede o login automático na próxima carga
                  google.accounts.id.disableAutoSelect();
-                 // Nota: disableAutoSelect não desconecta a conta Google, apenas impede o login automático.
              }
 
             // Reseta UI
             showLoginUI();
-            // ** MODIFICAÇÃO: Garante que o PlayFabId na UI é limpo no logout explícito **
+            // Garante que o PlayFabId na UI é limpo no logout explícito
             userPlayFabId.textContent = '';
             showMessage('Logout bem-sucedido.', 'success'); // Mensagem de sucesso
             console.log('Logout concluído.');
