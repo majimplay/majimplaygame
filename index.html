@@ -438,7 +438,12 @@
                 } else {
                     console.error('Erro no login PlayFab com Google:', responseObject, errorDetails);
                     // Loga a resposta completa do erro para ajudar a depurar
-                    console.error('Detalhes completos do erro PlayFab:', JSON.stringify(responseObject, null, 2));
+                    try {
+                         console.error('Detalhes completos do erro PlayFab (JSON stringified):', JSON.stringify(responseObject, null, 2));
+                    } catch (e) {
+                         console.error('Não foi possível stringify o objeto de erro PlayFab:', responseObject);
+                    }
+
                     const errorMessageText = responseObject?.errorMessage || responseObject?.status || 'Erro desconhecido no PlayFab';
                     const errorCodeValue = responseObject?.errorCode || 'N/A';
                     showError(`Falha no login PlayFab: ${errorMessageText} (Código: ${errorCodeValue})`); // Exibe erro na UI
