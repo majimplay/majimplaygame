@@ -181,6 +181,12 @@
             googleLoginBtn.style.display = 'inline-flex';
             userPanel.style.display = 'none';
             showError('');
+            // Opcional: Limpar os campos de usuário ao mostrar a UI de login
+            userDisplayName.textContent = 'Carregando...';
+            userPlayFabId.textContent = '';
+            userAvatar.style.display = 'none';
+            userAvatarPlaceholder.style.display = 'flex';
+            userAvatarPlaceholder.textContent = '?';
         }
 
         function showUserUI(profile) {
@@ -211,20 +217,39 @@
 
         /**
          * Verifica se existe uma sessão PlayFab válida reconhecida pela SDK.
+         * Se não houver, exibe a UI de login.
+         * Se houver, tenta carregar o perfil do usuário.
          */
         function checkExistingSession() {
-            // ** CORREÇÃO: Verifica se a SDK considera o cliente logado **
+            currentPlayFabId = localStorage.getItem('playfabId'); // Tenta carregar o último ID conhecido
+
             if (PlayFabClientSDK.IsClientLoggedIn()) {
                 console.log('Sessão PlayFab ativa encontrada pela SDK. Validando perfil...');
-                // Pega o PlayFabId do localStorage (ainda útil para exibição)
-                currentPlayFabId = localStorage.getItem('playfabId');
-                loadPlayFabUserProfile();
+                // Se a SDK está logada, o PlayFabId deve estar disponível ou ser buscado
+                if (!currentPlayFabId) {
+                     // Se por algum motivo o localStorage foi limpo mas a SDK ainda está logada,
+                     // podemos tentar obter o PlayFabId da SDK se houver um método para isso,
+                     // ou simplesmente prosseguir para carregar o perfil que deve conter o ID.
+                     console.warn('PlayFabId não encontrado no localStorage, mas SDK reporta estar logada.');
+                }
+                loadPlayFabUserProfile(); // Tenta carregar o perfil com a sessão ativa
             } else {
-                 // Limpa qualquer resquício de sessão antiga no localStorage se a SDK não reconhecer
-                 localStorage.removeItem('playfabSessionTicket'); // Pode remover isso eventualmente
-                 localStorage.removeItem('playfabId');
-                 console.log('Nenhuma sessão ativa encontrada pela SDK. Exibindo tela de login.');
+                 // ** MODIFICAÇÃO: Não removemos mais o playfabId aqui **
+                 // localStorage.removeItem('playfabId'); // Removido
+                 console.log('Nenhuma sessão ativa encontrada pela SDK.');
+
+                 // Opcional: Se houver um playfabId salvo, podemos mostrá-lo na UI de login
+                 // antes do usuário logar novamente, como um "Bem-vindo de volta, ID X".
+                 // Isso exigiria uma pequena alteração na showLoginUI ou uma nova função.
+                 // Por enquanto, apenas exibimos a UI de login padrão.
                  showLoginUI();
+
+                 // Se houver um playfabId no localStorage, podemos exibi-lo
+                 if (currentPlayFabId) {
+                     console.log('Último PlayFabId conhecido:', currentPlayFabId);
+                     // Poderíamos atualizar a UI para mostrar algo como "Último ID: " + currentPlayFabId
+                     // antes do login. Isso depende da UX desejada.
+                 }
             }
         }
 
@@ -356,7 +381,7 @@
             // Verifica se o nome precisa ser atualizado
             if (googleName && googleName !== currentPlayFabProfile?.DisplayName) {
                 console.log('Atualizando DisplayName no PlayFab...');
-                // ** CORREÇÃO: Usando UpdateUserTitleDisplayName **
+                // Usando UpdateUserTitleDisplayName
                 PlayFabClientSDK.UpdateUserTitleDisplayName({ DisplayName: googleName }, (responseObject, errorDetails) => {
                     if (responseObject && responseObject.code === 200) {
                         console.log('DisplayName atualizado com sucesso!', responseObject.data);
@@ -378,7 +403,7 @@
              // Verifica se a URL do avatar precisa ser atualizada
             if (googlePictureUrl && googlePictureUrl !== currentPlayFabProfile?.AvatarUrl) {
                 console.log('Atualizando AvatarUrl no PlayFab...');
-                 // ** CORREÇÃO: Usando UpdateAvatarUrl **
+                 // Usando UpdateAvatarUrl
                 PlayFabClientSDK.UpdateAvatarUrl({ ImageUrl: googlePictureUrl }, (responseObject, errorDetails) => {
                      if (responseObject && responseObject.code === 200) {
                         console.log('AvatarUrl atualizado com sucesso!');
@@ -408,38 +433,47 @@
             console.log('Carregando perfil do PlayFab...');
             showLoading(true);
 
+            // Se a SDK está logada, não precisamos necessariamente do PlayFabId do localStorage
+            // para chamar GetPlayerProfile, pois a SDK usa a sessão ativa.
+            // No entanto, mantemos a lógica de usar currentPlayFabId para consistência
+            // e caso a SDK precise dele por algum motivo interno na chamada.
             const profileRequest = {
-                PlayFabId: currentPlayFabId, // Pega o ID armazenado
+                // PlayFabId: currentPlayFabId, // Pode ser omitido se a SDK usar a sessão ativa
                 ProfileConstraints: {
                     ShowDisplayName: true,
                     ShowAvatarUrl: true
                 }
             };
 
+            // Nota: GetPlayerProfile sem PlayFabId no request geralmente busca o perfil
+            // do jogador associado à sessão ativa.
             PlayFabClientSDK.GetPlayerProfile(profileRequest, (responseObject, errorDetails) => {
                  showLoading(false);
 
                  if (responseObject && responseObject.code === 200 && responseObject.data && responseObject.data.PlayerProfile) {
                      console.log('Perfil PlayFab carregado:', responseObject.data.PlayerProfile);
-                     // Atualiza o ID caso tenha sido perdido (embora não deva acontecer neste fluxo)
+                     // Garante que o currentPlayFabId e o localStorage estejam atualizados com o ID retornado
                      currentPlayFabId = responseObject.data.PlayerProfile.PlayerId;
-                     localStorage.setItem('playfabId', currentPlayFabId); // Garante que está salvo
+                     localStorage.setItem('playfabId', currentPlayFabId);
                      showUserUI(responseObject.data.PlayerProfile);
                  } else {
                      console.error('Erro ao buscar perfil PlayFab:', responseObject, errorDetails);
                      const errorCodeValue = responseObject?.errorCode;
                      const invalidSessionCodes = [
                          (typeof PlayFab !== 'undefined' && PlayFab.ErrorCode) ? PlayFab.ErrorCode.InvalidSessionTicket : 1100,
-                         (typeof PlayFab !== 'undefined' && PlayFab.ErrorCode) ? PlayFab.ErrorCode.NotAuthenticated : 1073
+                         (typeof PlayFab !== 'undefined' && PlayFab.ErrorCode) ? PlayFab.ErrorCode.NotAuthenticated : 1073,
+                          (typeof PlayFab !== 'undefined' && PlayFab.ErrorCode) ? PlayFab.ErrorCode.InvalidSessionTicketError : 1101 // Adicionado outro código comum
                      ];
 
                      if (invalidSessionCodes.includes(errorCodeValue)) {
                          console.log('Sessão inválida ou expirada detectada ao carregar perfil. Realizando logout.');
+                         // ** MODIFICAÇÃO: logout() agora limpa o localStorage. **
                          logout(); // Força logout se a sessão for inválida
                      } else {
                          const errorMessageText = responseObject?.errorMessage || 'Erro desconhecido ao carregar perfil';
                          showError(`Erro ao carregar perfil: ${errorMessageText}`);
-                         // Considera deslogar aqui também, pois não se sabe o estado
+                         // Em caso de outros erros ao carregar o perfil com uma sessão que a SDK achou ativa,
+                         // é mais seguro deslogar para evitar estados inconsistentes.
                          logout();
                      }
                  }
@@ -459,7 +493,10 @@
             currentPlayFabId = null;
 
             // Informa a SDK para limpar a sessão (se houver função para isso - opcional)
-            // PlayFabClientSDK.ForgetAllCredentials(); // Exemplo, verificar nome correto se existir
+            // A SDK do PlayFab Client geralmente gerencia isso automaticamente quando as chamadas
+            // API falham por autenticação ou ao fechar a página/navegador.
+            // Não há um método ForgetAllCredentials padrão documentado para o Client SDK,
+            // a limpeza do localStorage que fizemos já é o suficiente para nossa lógica local.
 
             // Reseta UI
             showLoginUI();
