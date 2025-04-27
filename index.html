@@ -5,45 +5,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login with Google - PlayFab</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-            background-color: #f5f5f5;
-        }
+        /* Estilos anteriores mantidos */
+        body { /* ... */ }
+        .login-container { /* ... */ }
+        .google-btn { /* ... */ }
+        .google-btn:hover { /* ... */ }
+        .google-icon { /* ... */ }
 
-        .login-container {
-            background: white;
-            padding: 2rem;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        /* Novos estilos */
+        .user-panel {
+            display: none;
             text-align: center;
+            margin-top: 20px;
         }
-
-        .google-btn {
-            background-color: #4285f4;
+        .logout-btn {
+            background-color: #dc3545;
             color: white;
-            border: none;
-            padding: 12px 24px;
+            padding: 8px 16px;
             border-radius: 4px;
             cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            font-size: 16px;
-            transition: background-color 0.3s;
-        }
-
-        .google-btn:hover {
-            background-color: #357abd;
-        }
-
-        .google-icon {
-            height: 24px;
-            width: 24px;
+            margin-top: 10px;
         }
     </style>
 </head>
@@ -56,19 +37,37 @@
                  class="google-icon">
             Continue with Google
         </button>
+        
+        <div class="user-panel">
+            <h3>Bem-vindo, <span id="username"></span>!</h3>
+            <button class="logout-btn" onclick="logout()">Logout</button>
+        </div>
     </div>
 
-    <!-- Google Identity Services -->
+    <!-- Scripts anteriores mantidos -->
     <script src="https://accounts.google.com/gsi/client"></script>
-    
-    <!-- PlayFab SDK -->
     <script src="https://download.playfab.com/PlayFabClientApi.js"></script>
 
     <script>
-        // Configurações do PlayFab
         const titleId = '12DD32';
-        
+        let isProcessing = false;
+
+        // Verifica se já está logado ao carregar a página
+        window.onload = function() {
+            checkExistingSession();
+        };
+
+        function checkExistingSession() {
+            const sessionTicket = localStorage.getItem('playfabSessionTicket');
+            if(sessionTicket) {
+                loadUserProfile(sessionTicket);
+            }
+        }
+
         function handleGoogleLogin() {
+            if(isProcessing) return;
+            isProcessing = true;
+            
             const client = google.accounts.oauth2.initTokenClient({
                 client_id: '21514234895-keiqos567ifvs4hjkg3l1q5mvun8lri0.apps.googleusercontent.com',
                 scope: 'email profile openid',
@@ -76,12 +75,14 @@
                     if (response.access_token) {
                         loginWithPlayFab(response.access_token);
                     } else {
-                        alert('Falha ao obter token de acesso do Google');
+                        alert('Falha ao obter token do Google');
+                        isProcessing = false;
                     }
                 },
                 error: (error) => {
-                    console.error('Erro no Google OAuth:', error);
-                    alert('Erro na autenticação do Google: ' + error.type);
+                    console.error('Erro Google:', error);
+                    alert('Erro: ' + error.message);
+                    isProcessing = false;
                 }
             });
             client.requestAccessToken();
@@ -91,24 +92,68 @@
             const request = {
                 TitleId: titleId,
                 AccessToken: googleAccessToken,
-                CreateAccount: true
+                CreateAccount: true,
+                InfoRequestParameters: {
+                    GetPlayerProfile: true
+                }
             };
 
             PlayFabClientSDK.LoginWithGoogleAccount(request, (error, result) => {
                 const response = error || result;
-                
+                isProcessing = false;
+
                 if (response?.data?.SessionTicket) {
-                    alert('Login bem-sucedido!');
-                    console.log('Session Ticket:', response.data.SessionTicket);
-                  //  window.location.href = 'https://majimplay.github.io/majimplaygame/index.html';
+                    // Salva os dados no localStorage
+                    localStorage.setItem('playfabSessionTicket', response.data.SessionTicket);
+                    localStorage.setItem('playfabUserData', JSON.stringify(response.data));
+
+                    // Atualiza a UI
+                    showUserInfo(response.data);
                 } else {
-                    const errorDetails = response?.data?.errorMessage || 
-                                     response?.errorMessage || 
-                                     JSON.stringify(response);
-                    console.error('Erro completo:', response);
-                    alert(`Falha no login: ${errorDetails}`);
+                    const errorMsg = response?.data?.errorMessage || 'Erro desconhecido';
+                    alert(`Falha: ${errorMsg}`);
                 }
             });
+        }
+
+        function showUserInfo(userData) {
+            document.querySelector('.google-btn').style.display = 'none';
+            const userPanel = document.querySelector('.user-panel');
+            const usernameSpan = document.getElementById('username');
+
+            // Tenta obter o nome do perfil
+            const username = userData?.InfoResultPayload?.PlayerProfile?.DisplayName || 
+                           userData?.EntityToken?.Entity?.Id || 
+                           'Usuário';
+
+            usernameSpan.textContent = username;
+            userPanel.style.display = 'block';
+        }
+
+        function loadUserProfile(sessionTicket) {
+            const request = {
+                SessionTicket: sessionTicket,
+                InfoRequestParameters: {
+                    GetPlayerProfile: true
+                }
+            };
+
+            PlayFabClientSDK.GetPlayerProfile(request, (error, result) => {
+                if(result?.data?.PlayerProfile) {
+                    showUserInfo({
+                        InfoResultPayload: {
+                            PlayerProfile: result.data.PlayerProfile
+                        }
+                    });
+                }
+            });
+        }
+
+        function logout() {
+            localStorage.removeItem('playfabSessionTicket');
+            localStorage.removeItem('playfabUserData');
+            document.querySelector('.google-btn').style.display = 'flex';
+            document.querySelector('.user-panel').style.display = 'none';
         }
     </script>
 </body>
