@@ -191,13 +191,6 @@
         };
 
         /**
-         * Inicializa a nova Google Identity Services Library.
-         * Nota: A inicialização GSI agora é feita implicitamente pela chamada a google.accounts.oauth2.initTokenClient
-         * na função handleGoogleLogin. Não precisamos de uma chamada initialize separada aqui.
-         */
-        // function initializeGoogleSignIn() { ... } // Removida
-
-        /**
          * Callback chamada pela Google Identity Services após obter a credencial (OAuth 2.0 Token).
          * Esta função é o callback direto da chamada client.requestAccessToken().
          * @param {object} tokenResponse O objeto de resposta do Google OAuth 2.0.
@@ -252,7 +245,8 @@
             showError(''); // Limpa mensagem de erro
             // Limpa os campos de usuário ao mostrar a UI de login
             userDisplayName.textContent = 'Carregando...';
-            userPlayFabId.textContent = '';
+            // ** MODIFICAÇÃO: Não limpa o userPlayFabId aqui **
+            // userPlayFabId.textContent = '';
             userAvatar.style.display = 'none';
             userAvatarPlaceholder.style.display = 'flex';
             userAvatarPlaceholder.textContent = '?';
@@ -292,21 +286,45 @@
          * Se sim, tenta carregar o perfil. Se não, exibe a UI de login.
          */
         function checkExistingSession() {
-            console.log('checkExistingSession: Verificando sessão com PlayFabClientSDK.IsClientLoggedIn()...');
+            // Tenta carregar o PlayFabId do localStorage primeiro
+            currentPlayFabId = localStorage.getItem('playfabId');
 
-            // ** CORREÇÃO: Usa PlayFabClientSDK.IsClientLoggedIn() **
+            console.log('checkExistingSession: Verificando sessão...');
+            console.log('checkExistingSession: localStorage playfabId:', currentPlayFabId);
+            console.log('checkExistingSession: PlayFabClientSDK.IsClientLoggedIn():', PlayFabClientSDK.IsClientLoggedIn());
+
+
+            // ** MODIFICAÇÃO PRINCIPAL AQUI **
             if (PlayFabClientSDK.IsClientLoggedIn()) {
-                console.log('Sessão PlayFab ativa encontrada pela SDK.');
-                // Pega o PlayFabId do localStorage (útil para exibição imediata)
-                currentPlayFabId = localStorage.getItem('playfabId');
+                console.log('checkExistingSession: PlayFabClientSDK.IsClientLoggedIn() é true. Sessão ativa encontrada pela SDK.');
+                // Se a SDK está logada, tenta carregar o perfil.
+                // O PlayFabId já deve estar no localStorage de um login anterior.
+                if (currentPlayFabId) {
+                     console.log(`checkExistingSession: PlayFabId (${currentPlayFabId}) encontrado no localStorage. Carregando perfil.`);
+                      // Mostra o ID imediatamente enquanto carrega o resto do perfil
+                     userPlayFabId.textContent = currentPlayFabId;
+                } else {
+                     console.log('checkExistingSession: PlayFabClientSDK.IsClientLoggedIn() é true, mas nenhum playfabId no localStorage. Isso é inesperado, mas a SDK tem a sessão. Carregando perfil.');
+                     // Continua mesmo sem o ID no localStorage, o perfil trará o ID.
+                }
                 showLoading(true); // Mostra spinner enquanto carrega o perfil
                 loadPlayFabUserProfile(); // Carrega o perfil do usuário logado
             } else {
-                 console.log('Nenhuma sessão ativa encontrada pela SDK. Exibindo tela de login.');
-                 // Limpa qualquer PlayFabId antigo no localStorage se a SDK não reconhecer a sessão
-                 localStorage.removeItem('playfabId');
-                 currentPlayFabId = null;
-                 showLoginUI(); // Mostra a UI de login padrão
+                console.log('checkExistingSession: PlayFabClientSDK.IsClientLoggedIn() é false.');
+                if (currentPlayFabId) {
+                    console.log(`checkExistingSession: PlayFabClientSDK.IsClientLoggedIn() é false, mas PlayFabId (${currentPlayFabId}) encontrado no localStorage. Sessão provavelmente expirou ou foi perdida.`);
+                    // ** MODIFICAÇÃO: NÃO REMOVE o playfabId do localStorage aqui **
+                    // localStorage.removeItem('playfabId'); // Removido
+                    // currentPlayFabId = null; // Removido
+                    // Mantém o PlayFabId na UI se ele estava no localStorage
+                    userPlayFabId.textContent = currentPlayFabId;
+                    showLoginUI(); // Mostra a UI de login
+                    showMessage('Sessão expirada ou perdida. Faça login novamente.', 'error'); // Informa o usuário
+                } else {
+                    console.log('checkExistingSession: Nenhuma sessão ativa encontrada pela SDK e nenhum playfabId no localStorage. Exibindo tela de login.');
+                    // Nenhuma indicação de login anterior, mostra UI de login padrão
+                    showLoginUI();
+                }
             }
         }
 
@@ -432,7 +450,7 @@
                 }
             };
 
-            // ** CORREÇÃO: Usa GetPlayerProfile sem PlayFabId explícito quando logado **
+            // Usa GetPlayerProfile sem PlayFabId explícito quando logado
             PlayFabClientSDK.GetPlayerProfile(profileRequest, (responseObject, errorDetails) => {
                  showLoading(false);
 
@@ -456,8 +474,8 @@
                      // Códigos de erro comuns para sessão inválida/expirada
                      const invalidSessionCodes = [
                          (typeof PlayFab !== 'undefined' && PlayFab.ErrorCode) ? PlayFab.ErrorCode.InvalidSessionTicket : 1100,
-                         (typeof PlayFab !== 'undefined' && PlayFab.ErrorCode) ? PlayFabClientSDK.PlayFabErrorCode.NotAuthenticated : 1073, // Usar PlayFabClientSDK.PlayFabErrorCode
-                         (typeof PlayFab !== 'undefined' && PlayFabClientSDK.PlayFabErrorCode) ? PlayFabClientSDK.PlayFabErrorCode.SessionTicketExpired : 1101 // Adicionado SessionTicketExpired
+                         (typeof PlayFabClientSDK !== 'undefined' && PlayFabClientSDK.PlayFabErrorCode) ? PlayFabClientSDK.PlayFabErrorCode.NotAuthenticated : 1073, // Usar PlayFabClientSDK.PlayFabErrorCode
+                         (typeof PlayFabClientSDK !== 'undefined' && PlayFabClientSDK.PlayFabErrorCode) ? PlayFabClientSDK.PlayFabErrorCode.SessionTicketExpired : 1101 // Adicionado SessionTicketExpired
                      ];
 
                      if (invalidSessionCodes.includes(errorCodeValue)) {
@@ -504,6 +522,8 @@
 
             // Reseta UI
             showLoginUI();
+            // ** MODIFICAÇÃO: Garante que o PlayFabId na UI é limpo no logout explícito **
+            userPlayFabId.textContent = '';
             showMessage('Logout bem-sucedido.', 'success'); // Mensagem de sucesso
             console.log('Logout concluído.');
         }
