@@ -1,6 +1,6 @@
 // --- Configuration ---
 // IMPORTANT: Replace with your actual Google Apps Script Web App URL
-const GOOGLE_SHEET_APP_URL = 'https://script.google.com/u/0/home/projects/1lf1SsEwWMdfbhR3TiIQWW6e7ULvi1DiqhDtA8t7NmCeWdOchMaVWAUJq/edit';
+const GOOGLE_SHEET_APP_URL = 'https://script.google.com/macros/s/AKfycbwYE4Xi7snt-D7rfwQpoN7S3aeuyrQnARg5_0iy55ArzZ1qdcJbAsl5DwKX9Myh3ZAEVQ/exec';
 const USER_DATA_KEY = 'googleUserData'; // Key for localStorage
 
 // --- DOM Elements ---
@@ -68,7 +68,7 @@ function updateUI(userData) {
  * @param {object} userData - The user data object.
  */
 function saveToSheet(userData) {
-    if (!GOOGLE_SHEET_APP_URL || GOOGLE_SHEET_APP_URL === 'https://script.google.com/u/0/home/projects/1lf1SsEwWMdfbhR3TiIQWW6e7ULvi1DiqhDtA8t7NmCeWdOchMaVWAUJq/edit') {
+    if (!GOOGLE_SHEET_APP_URL || GOOGLE_SHEET_APP_URL === 'https://script.google.com/macros/s/AKfycbwYE4Xi7snt-D7rfwQpoN7S3aeuyrQnARg5_0iy55ArzZ1qdcJbAsl5DwKX9Myh3ZAEVQ/exec') {
         console.warn('Google Apps Script URL not configured. Skipping sheet save.');
         statusMessageDiv.textContent = 'Login bem-sucedido (salvamento em planilha desativado).';
         return;
@@ -199,7 +199,7 @@ window.addEventListener('load', () => {
 });
 
 // Make sure the Google Apps Script URL is replaced before use!
-if (GOOGLE_SHEET_APP_URL === 'https://script.google.com/u/0/home/projects/1lf1SsEwWMdfbhR3TiIQWW6e7ULvi1DiqhDtA8t7NmCeWdOchMaVWAUJq/edit') {
+if (GOOGLE_SHEET_APP_URL === 'https://script.google.com/macros/s/AKfycbwYE4Xi7snt-D7rfwQpoN7S3aeuyrQnARg5_0iy55ArzZ1qdcJbAsl5DwKX9Myh3ZAEVQ/exec') {
     console.warn('REMINDER: Replace YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL in script.js');
     // Optionally disable the button or show a message if not configured
 }
