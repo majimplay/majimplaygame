@@ -142,3 +142,40 @@ if (GOOGLE_SHEET_APP_URL === 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL') {
     console.warn('REMINDER: Replace YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL in script.js');
     statusMessageDiv.textContent = 'AVISO: A URL do Google Apps Script precisa ser configurada em script.js.';
 }
+//botao enviar 
+document.getElementById('submitUserButton').addEventListener('click', function() {
+    // Coletar dados dos inputs
+    const userData = {
+        id: document.getElementById('inputId').value.trim(),
+        name: document.getElementById('inputName').value.trim(),
+        email: document.getElementById('inputEmail').value.trim(),
+        picture: document.getElementById('inputPicture').value.trim()
+    };
+
+    // Validação básica
+    if (!userData.id || !userData.name || !userData.email) {
+        statusMessageDiv.textContent = 'Erro: Preencha pelo menos ID, Nome e Email.';
+        statusMessageDiv.style.color = 'red';
+        return;
+    }
+
+    // Validar formato do email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(userData.email)) {
+        statusMessageDiv.textContent = 'Erro: Formato de email inválido.';
+        statusMessageDiv.style.color = 'red';
+        return;
+    }
+
+    // Enviar dados para a planilha
+    saveToSheet(userData);
+    
+    // Feedback visual e limpeza dos campos
+    statusMessageDiv.textContent = 'Dados enviados para a planilha!';
+    statusMessageDiv.style.color = 'green';
+    
+    // Limpar campos
+    document.querySelectorAll('#manualEntry input').forEach(input => {
+        input.value = '';
+    });
+});    //botao enviar fim 
