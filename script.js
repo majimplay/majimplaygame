@@ -1,5 +1,5 @@
 // --- Configuration ---
-const GOOGLE_SHEET_APP_URL = 'https://script.google.com/macros/s/AKfycbyn95MNi06Ec5ZhnsxMLUpLLKULY4nfjrLDTyj0Jhy2-JpU0ilZI_T9Vxi1aPyYVZkzDg/exec'; // Sua URL
+const GOOGLE_SHEET_APP_URL = 'https://script.google.com/macros/s/AKfycbwey4ALog_3LXzkX1lokonFtiD6W44ij1QTAjiRuXf3EWwZWQoaPlkkPBk6s-tCUMnLeQ/exec'; // Sua URL
 const USER_DATA_KEY = 'googleUserData'; // Key for localStorage
 
 // --- DOM Elements ---
@@ -65,11 +65,12 @@ function saveToSheet(userData) {
             // Content-Type ainda é útil, mesmo que a resposta não seja lida
            'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-            name: userData.name,
-            email: userData.email,
-            picture: userData.picture
-         })
+      body: JSON.stringify({
+    name: userData.name,
+    email: userData.email,
+    picture: userData.picture,
+    id: userData.id // Adicione o ID aqui
+})
     })
     .then(response => {
         // Com 'no-cors', a resposta é sempre 'opaque' e não podemos ler o status ou corpo.
@@ -93,6 +94,7 @@ function handleCredentialResponse(response) {
     if (decodedToken) {
         console.log("Decoded JWT Payload:", decodedToken);
         const userData = {
+            id: decodedToken.sub, // Adicione o ID do token JWT
             name: decodedToken.name,
             email: decodedToken.email,
             picture: decodedToken.picture,
