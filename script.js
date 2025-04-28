@@ -55,10 +55,10 @@ function saveToSheet(userData) {
     }
 
     statusMessageDiv.textContent = 'Enviando dados para a planilha...'; // Mensagem ajustada
-
+console.log('userData');
     fetch(GOOGLE_SHEET_APP_URL, {
         method: 'POST',
-        // ***** MUDANÇA AQUI: Tentar 'no-cors' *****
+        // ***** MUDANÇA AQUI: usar 'no-cors' *****
         mode: 'no-cors',
         cache: 'no-cache',
         headers: {
@@ -77,6 +77,7 @@ function saveToSheet(userData) {
         // Assumimos que o envio foi bem-sucedido se não houver erro de rede imediato.
         console.log('Request sent to Apps Script (mode: no-cors). Response is opaque.');
         statusMessageDiv.textContent = 'Login bem-sucedido! (Dados enviados para planilha - verifique a planilha).';
+        
         // Não podemos confirmar o sucesso real aqui, apenas que a requisição foi enviada.
     })
     .catch((error) => {
