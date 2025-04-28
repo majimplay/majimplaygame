@@ -1,0 +1,57 @@
+function doPost(e) {
+  try {
+    var data  = JSON.parse(e.postData.contents);
+    var ss    = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName('usuarios');
+
+    // Se não existir nenhuma linha além do cabeçalho, lastRow será 1
+    var lastRow = sheet.getLastRow();
+    if (lastRow > 1) {
+      // Pega todos os GoogleIDs (coluna B) da linha 2 até a última
+      var idRange = sheet.getRange(2, 2, lastRow - 1, 1);
+      var idValues = idRange.getValues().flat();
+
+      // Se encontrar o ID no array, retorna erro
+      if (idValues.indexOf(data.id) !== -1) {
+        return ContentService
+          .createTextOutput(JSON.stringify({
+            status:  'error',
+            message: 'Usuário já cadastrado.'
+          }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+    }
+
+    // Se não achou duplicado, insere a nova linha
+    sheet.appendRow([
+      data.name,
+      data.email,
+      data.picture
+      new Date(),    // Timestamp
+      data.id,       // GoogleID
+    ]);
+
+    // (Opcional) reaplica bordas na nova linha
+    lastRow = sheet.getLastRow();
+    var range = sheet.getRange(lastRow, 1, 1, sheet.getLastColumn());
+    range.setBorder(true, true, true, true, true, true,
+                    '#000000',
+                    SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
+
+    return ContentService
+      .createTextOutput(JSON.stringify({
+        status:  'success',
+        message: 'Usuário inserido com sucesso.'
+      }))
+      .setMimeType(ContentService.MimeType.JSON);
+
+  } catch(err) {
+    Logger.log(err);
+    return ContentService
+      .createTextOutput(JSON.stringify({
+        status:  'error',
+        message: err.toString()
+      }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
