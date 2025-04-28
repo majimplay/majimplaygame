@@ -6,7 +6,10 @@ function doPost(e) {
     // Get the active spreadsheet and the specific sheet (assuming it's the first sheet)
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sheet = ss.getSheets()[0]; // Or use ss.getSheetByName("YourSheetName");
-
+    
+    
+     // var sheet = ss.getSheetByName('planilha login com gogo');//erro
+     // var sheet = ss.getSheetByName('usuarios');//erro
     // Append a new row with the received data and a timestamp
     // Make sure the order matches your sheet columns
     sheet.appendRow([
@@ -16,6 +19,10 @@ function doPost(e) {
     new Date(),      // Timestamp (coluna D)
     data.id          // GoogleID (coluna E)
     ]);
+        // Formatação da nova linha (A a E)
+    const newRow = sheet.getLastRow();
+    sheet.getRange(newRow, 1, 1, 5) // Intervalo A:E
+         .setBorder(true, true, true, true, true, true, '#000000', SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
 
     // Return a success response
     return ContentService
