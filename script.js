@@ -17,12 +17,20 @@ function jwtDecode(token) {
     try {
         const base64Url = token.split('.')[1];
         const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-        const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-        }).join(''));
-        return JSON.parse(jsonPayload);
+        const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => 
+            '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
+        ).join(''));
+        
+        const payload = JSON.parse(jsonPayload);
+        // Verificar expiração do token
+        const currentTime = Date.now() / 1000;
+        if (payload.exp && payload.exp < currentTime) {
+            console.log('Token expirado');
+            return null;
+        }
+        return payload;
     } catch (e) {
-        console.error("Error decoding JWT:", e);
+        console.error("Erro decodificando JWT:", e);
         return null;
     }
 }
@@ -32,7 +40,6 @@ function updateUI(userData) {
         userNameSpan.textContent = userData.name || 'N/A';
         userEmailSpan.textContent = userData.email || 'N/A';
         userPhotoImg.src = userData.picture || '';
-        userPhotoImg.alt = `Foto de ${userData.name || 'Usuário'}`;
         userInfoDiv.classList.remove('hidden');
         googleSignInButtonContainer.classList.add('hidden');
         statusMessageDiv.textContent = '';
@@ -89,51 +96,54 @@ console.log('userData');
 
 
 function handleCredentialResponse(response) {
-    console.log("Encoded JWT ID token: " + response.credential);
-    const decodedToken = jwtDecode(response.credential);
+    const token = response.credential;
+    const decodedToken = jwtDecode(token);
 
     if (decodedToken) {
-        console.log("Decoded JWT Payload:", decodedToken);
-        const userData = {
-            id: decodedToken.sub, // Adicione o ID do token JWT
+        // Armazena apenas o token JWT
+        localStorage.setItem(USER_DATA_KEY, token);
+        
+        // Atualiza UI com dados decodificados
+        updateUI({
             name: decodedToken.name,
             email: decodedToken.email,
-            picture: decodedToken.picture,
-        };
-        localStorage.setItem(USER_DATA_KEY, JSON.stringify(userData));
-        updateUI(userData);
-        saveToSheet(userData); // Chama o salvamento
+            picture: decodedToken.picture
+        });
+        
+        // Envia dados para planilha
+        saveToSheet({
+            id: decodedToken.sub,
+            name: decodedToken.name,
+            email: decodedToken.email,
+            picture: decodedToken.picture
+        });
     } else {
-        console.error("Failed to decode token.");
-        statusMessageDiv.textContent = 'Falha ao processar o login. Tente novamente.';
+        statusMessageDiv.textContent = 'Falha no login. Token inválido ou expirado.';
     }
 }
 
 function logout() {
     localStorage.removeItem(USER_DATA_KEY);
-    // google.accounts.id.disableAutoSelect(); // Opcional
     updateUI(null);
-    statusMessageDiv.textContent = 'Você saiu com sucesso.';
-    console.log("User logged out.");
+    statusMessageDiv.textContent = 'Sessão encerrada.';
 }
 
 // --- Initialization ---
-logoutButton.addEventListener('click', logout);
-
 window.addEventListener('load', () => {
-    const storedData = localStorage.getItem(USER_DATA_KEY);
-    if (storedData) {
-        try {
-            const userData = JSON.parse(storedData);
-            console.log("Found stored user data. Restoring session.", userData);
-            updateUI(userData);
-        } catch (e) {
-            console.error("Error parsing stored user data:", e);
-            localStorage.removeItem(USER_DATA_KEY);
-            updateUI(null);
+    const storedToken = localStorage.getItem(USER_DATA_KEY);
+    
+    if (storedToken) {
+        const decodedToken = jwtDecode(storedToken);
+        if (decodedToken) {
+            updateUI({
+                name: decodedToken.name,
+                email: decodedToken.email,
+                picture: decodedToken.picture
+            });
+        } else {
+            logout();
         }
     } else {
-        console.log("No stored user data found.");
         updateUI(null);
     }
 });
