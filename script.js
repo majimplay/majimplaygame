@@ -67,6 +67,7 @@ function saveToSheet(userData) {
            'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+            id: userData.id,
             name: userData.name,
             email: userData.email,
             picture: userData.picture
@@ -94,6 +95,7 @@ function handleCredentialResponse(response) {
     if (decodedToken) {
         console.log("Decoded JWT Payload:", decodedToken);
         const userData = {
+           id: decodedToken.sub,
             name: decodedToken.name,
             email: decodedToken.email,
             picture: decodedToken.picture,
