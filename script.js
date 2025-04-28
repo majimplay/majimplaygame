@@ -1,5 +1,5 @@
 // --- Configuration ---
-const GOOGLE_SHEET_APP_URL = 'https://script.google.com/macros/s/AKfycbwey4ALog_3LXzkX1lokonFtiD6W44ij1QTAjiRuXf3EWwZWQoaPlkkPBk6s-tCUMnLeQ/exec'; // Sua URL
+const GOOGLE_SHEET_APP_URL = 'https://script.google.com/macros/s/AKfycbzsZTv9V5arv6AaUfrX3EuIrOa37vJIsU6tPlrY6hTsvihUOhR-qhgf4knwPX5SxRi5-Q/exec'; // Sua URL
 const USER_DATA_KEY = 'googleUserData'; // Key for localStorage
 
 // --- DOM Elements ---
