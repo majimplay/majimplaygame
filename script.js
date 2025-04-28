@@ -1,6 +1,6 @@
 // --- Configuration ---
 // IMPORTANT: Replace with your actual Google Apps Script Web App URL
-const GOOGLE_SHEET_APP_URL = 'https://script.google.com/macros/s/AKfycbwYE4Xi7snt-D7rfwQpoN7S3aeuyrQnARg5_0iy55ArzZ1qdcJbAsl5DwKX9Myh3ZAEVQ/exec';
+const GOOGLE_SHEET_APP_URL = 'https://script.google.com/macros/s/AKfycbwYE4Xi7snt-D7rfwQpoN7S3aeuyrQnARg5_0iy55ArzZ1qdcJbAsl5DwKX9Myh3ZAEVQ/exec'; // <-- SUA URL REAL AQUI (Parece correta)
 const USER_DATA_KEY = 'googleUserData'; // Key for localStorage
 
 // --- DOM Elements ---
@@ -68,57 +68,71 @@ function updateUI(userData) {
  * @param {object} userData - The user data object.
  */
 function saveToSheet(userData) {
-    if (!GOOGLE_SHEET_APP_URL || GOOGLE_SHEET_APP_URL === 'https://script.google.com/macros/s/AKfycbwYE4Xi7snt-D7rfwQpoN7S3aeuyrQnARg5_0iy55ArzZ1qdcJbAsl5DwKX9Myh3ZAEVQ/exec') {
+    // ***** CORREÇÃO AQUI *****
+    // Verifica se a URL está vazia OU se ainda é a string de exemplo original
+    if (!GOOGLE_SHEET_APP_URL || GOOGLE_SHEET_APP_URL === 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL') {
         console.warn('Google Apps Script URL not configured. Skipping sheet save.');
-        statusMessageDiv.textContent = 'Login bem-sucedido (salvamento em planilha desativado).';
-        return;
+        statusMessageDiv.textContent = 'Login bem-sucedido (salvamento em planilha desativado - URL não configurada).';
+        return; // Interrompe a função se a URL não estiver configurada corretamente
     }
 
     statusMessageDiv.textContent = 'Salvando dados na planilha...';
 
     fetch(GOOGLE_SHEET_APP_URL, {
         method: 'POST',
-        mode: 'cors', // Important for cross-origin requests if your Apps Script returns headers
-                      // For simple doPost often 'no-cors' works if you don't need the response,
-                      // but 'cors' is better if the Apps Script is configured correctly.
-                      // The default Apps Script deployment might require 'no-cors' if you haven't
-                      // explicitly handled CORS headers in the script. Try 'cors' first.
+        mode: 'cors', // 'cors' é geralmente preferível se o Apps Script estiver configurado para isso
         cache: 'no-cache',
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify(userData) // Send name, email, picture
+        // Envia apenas os dados necessários para a planilha
+        body: JSON.stringify({
+            name: userData.name,
+            email: userData.email,
+            picture: userData.picture
+         })
     })
     .then(response => {
-        // If mode is 'no-cors', response will be opaque, cannot read body
-        // If mode is 'cors', check if response is ok
-        if (response.ok) {
-             return response.json(); // Try to parse JSON response from Apps Script
-        } else if (response.type === 'opaque') {
-             // This happens with 'no-cors'. Assume success for sheet saving.
+        // Se o modo for 'no-cors', a resposta será opaca, não podemos ler o corpo
+        if (response.type === 'opaque') {
              console.log('Request sent to Apps Script (no-cors). Assume success.');
+             // Como não podemos ler a resposta, assumimos sucesso para salvar na planilha.
              return { status: 'success', message: 'Data likely saved (no-cors response).' };
         }
-        // If response not ok and not opaque, throw error
-        throw new Error(`Network response was not ok: ${response.statusText}`);
+        // Se o modo for 'cors', verificamos se a resposta está ok
+        if (response.ok) {
+             return response.json(); // Tenta analisar a resposta JSON do Apps Script
+        }
+        // Se a resposta não estiver ok e não for opaca, lança um erro
+        throw new Error(`Network response was not ok: ${response.statusText} (Status: ${response.status})`);
 
     })
     .then(data => {
         console.log('Apps Script Response:', data);
         if (data && data.status === 'success') {
-            statusMessageDiv.textContent = 'Login bem-sucedido e dados salvos!';
-        } else {
-             // Even if technically saved via 'no-cors', report based on assumption
-             if(data && data.message.includes('no-cors response')) {
+            // Mensagem mais clara se a resposta foi 'no-cors'
+            if (data.message && data.message.includes('no-cors response')) {
                  statusMessageDiv.textContent = 'Login bem-sucedido! (Dados enviados para planilha).';
-             } else {
-                 statusMessageDiv.textContent = `Login bem-sucedido, mas erro ao salvar na planilha: ${data ? data.message : 'Unknown error'}`;
-             }
+            } else {
+                 statusMessageDiv.textContent = 'Login bem-sucedido e dados salvos!';
+            }
+        } else {
+            // Se houve um erro reportado pelo Apps Script (mesmo com resposta OK)
+            statusMessageDiv.textContent = `Login bem-sucedido, mas erro ao salvar na planilha: ${data ? data.message : 'Resposta inesperada do script.'}`;
         }
     })
     .catch((error) => {
         console.error('Error sending data to Google Sheet:', error);
+        // Fornece mais detalhes sobre o erro de rede, se possível
         statusMessageDiv.textContent = `Login bem-sucedido, mas falha ao conectar com a planilha: ${error.message}`;
+        // Dica adicional em caso de erro de CORS
+        if (error.message.toLowerCase().includes('cors')) {
+             statusMessageDiv.textContent += ' Verifique as configurações de CORS ou tente mudar o modo para "no-cors" no fetch.';
+        }
+         // Dica adicional em caso de erro 4xx/5xx
+        if (error.message.includes('Status:')) {
+             statusMessageDiv.textContent += ' Verifique se a URL do Apps Script está correta e se a implantação está ativa com acesso para "Qualquer pessoa".';
+        }
     });
 }
 
@@ -137,7 +151,7 @@ function handleCredentialResponse(response) {
             name: decodedToken.name,
             email: decodedToken.email,
             picture: decodedToken.picture,
-            // You can add other fields like sub (subject/user ID), given_name, family_name etc.
+            // Você pode adicionar outros campos como sub (ID do usuário), given_name, family_name etc.
         };
 
         // --- Persist Login ---
@@ -163,10 +177,10 @@ function logout() {
     localStorage.removeItem(USER_DATA_KEY);
 
     // --- Optional: Disable Google automatic sign-in for the next visit ---
-    // google.accounts.id.disableAutoSelect(); // Uncomment if you use auto-signin features
+    // google.accounts.id.disableAutoSelect(); // Descomente se usar recursos de login automático
 
     // --- Update UI ---
-    updateUI(null); // Pass null to show logged-out state
+    updateUI(null); // Passa null para mostrar o estado de logout
     statusMessageDiv.textContent = 'Você saiu com sucesso.';
     console.log("User logged out.");
 }
@@ -198,8 +212,11 @@ window.addEventListener('load', () => {
     // in the HTML ('g_id_onload', 'g_id_signin').
 });
 
-// Make sure the Google Apps Script URL is replaced before use!
-if (GOOGLE_SHEET_APP_URL === 'https://script.google.com/macros/s/AKfycbwYE4Xi7snt-D7rfwQpoN7S3aeuyrQnARg5_0iy55ArzZ1qdcJbAsl5DwKX9Myh3ZAEVQ/exec') {
+// ***** CORREÇÃO AQUI *****
+// Verifica se a URL ainda é a string de exemplo original
+if (GOOGLE_SHEET_APP_URL === 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL') {
     console.warn('REMINDER: Replace YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL in script.js');
-    // Optionally disable the button or show a message if not configured
+    // Opcionalmente, desabilitar o botão ou mostrar uma mensagem se não configurado
+    statusMessageDiv.textContent = 'AVISO: A URL do Google Apps Script precisa ser configurada em script.js.';
 }
+
