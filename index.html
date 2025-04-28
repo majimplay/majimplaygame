@@ -3,15 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login com Google</title>
+    <title>Login e Cadastro de Usuários</title>
     <link rel="stylesheet" href="style.css">
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
 
     <div class="container">
         <h1>Login Persistente com Google</h1>
 
+        <!-- Botão de login Google -->
         <div id="googleSignInButtonContainer">
             <div id="g_id_onload"
                  data-client_id="21514234895-keiqos567ifvs4hjkg3l1q5mvun8lri0.apps.googleusercontent.com"
@@ -31,6 +31,7 @@
             </div>
         </div>
 
+        <!-- Informações do usuário logado -->
         <div id="userInfo" class="hidden">
             <h2>Bem-vindo!</h2>
             <img id="userPhoto" src="" alt="Foto do Usuário">
@@ -39,10 +40,21 @@
             <button id="logoutButton">Sair</button>
         </div>
 
-        <div id="statusMessage"></div>
+        <!-- Formulário manual de cadastro -->
+        <div id="manualEntry">
+            <h2>Cadastrar Usuário Manualmente</h2>
+            <input type="text" id="inputId" placeholder="Google ID">
+            <input type="text" id="inputName" placeholder="Nome">
+            <input type="email" id="inputEmail" placeholder="Email">
+            <input type="text" id="inputPicture" placeholder="URL da Foto">
+            <button id="submitUserButton">Enviar</button>
+        </div>
 
+        <div id="statusMessage"></div>
     </div>
 
-    <script src="script.js"></script>
+    <!-- Bibliotecas e script -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+     <script src="script.js"></script>
 </body>
 </html>
