@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login com Google</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Login Persistente com Google</h1>
+
+        <div id="googleSignInButtonContainer">
+            <div id="g_id_onload"
+                 data-client_id="21514234895-keiqos567ifvs4hjkg3l1q5mvun8lri0.apps.googleusercontent.com"
+                 data-context="signin"
+                 data-ux_mode="popup"
+                 data-callback="handleCredentialResponse"
+                 data-auto_prompt="false">
+            </div>
+
+            <div class="g_id_signin"
+                 data-type="standard"
+                 data-shape="rectangular"
+                 data-theme="outline"
+                 data-text="signin_with"
+                 data-size="large"
+                 data-logo_alignment="left">
+            </div>
+        </div>
+
+        <div id="userInfo" class="hidden">
+            <h2>Bem-vindo!</h2>
+            <img id="userPhoto" src="" alt="Foto do Usuário">
+            <p><strong>Nome:</strong> <span id="userName"></span></p>
+            <p><strong>Email:</strong> <span id="userEmail"></span></p>
+            <button id="logoutButton">Sair</button>
+        </div>
+
+        <div id="statusMessage"></div>
+
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
