@@ -127,7 +127,13 @@ function logout() {
     updateUI(null);
     statusMessageDiv.textContent = 'Sessão encerrada.';
 }
-
+  document.getElementById('logoutButton').addEventListener('click', logoutFunction);
+           
+           function logoutFunction() {
+             //  localStorage.removeItem('token'); // Remove o token de autenticação
+               sessionStorage.clear(); // Limpa a sessão
+               window.location.href = 'https://majimplay.github.io/majimplaygame/minhapagina.html'; // Redireciona para a página de login
+           }
 // --- Initialization ---
 window.addEventListener('load', () => {
     const storedToken = localStorage.getItem(USER_DATA_KEY);
