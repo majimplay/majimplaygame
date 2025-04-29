@@ -1,14 +1,45 @@
 <!DOCTYPE html>
 <html> 
 <head>
-	<meta charset="utf-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<meta name="generator" content="RocketCake">
-	<title>minha pagina principal</title>
-	<link rel="stylesheet" type="text/css" href="minhapagina_html.css?h=52e1fd58">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="generator" content="RocketCake">
+    <title>Minha Loja</title>
+    <link rel="stylesheet" type="text/css" href="minhapagina_html.css?h=52e1fd58">
+    <!-- Biblioteca do Google Identity Services -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
 <div class="textstyle1">
+    
+    <!-- Container de Login Google (visível quando não logado) -->
+    <div id="googleSignInButtonContainer">
+        <div class="g_id_signin" 
+             data-type="standard" 
+             data-size="large" 
+             data-theme="outline" 
+             data-text="sign_in_with" 
+             data-shape="rectangular" 
+             data-logo_alignment="left" 
+             data-callback="handleCredentialResponse">
+        </div>
+    </div>
+
+    <!-- Container do Usuário Logado (oculto inicialmente) -->
+    <div id="userInfo" class="hidden">
+        <img id="userPhoto" alt="Foto do Usuário" style="width:50px; border-radius:50%;">
+        <p>Bem vindo, <span id="userName"></span></p>
+        <p>Email: <span id="userEmail"></span></p>
+        <button id="logoutButton">Sair</button>
+    </div>
+
+    <!-- Mensagens de Status -->
+    <div id="statusMessage"></div>
+
+
+
+
+
 <div id="container_e4bf9ac"><div id="container_e4bf9ac_padding" ><div class="textstyle1"><label id="label_157c0625">minha pagina<br/></label>  <span class="textstyle2">            </span>
   <span class="textstyle2"> </span>
 </div>
@@ -48,8 +79,9 @@
 <div style="clear:both"></div></div></div><div id="button_44bdc134"><div class="vcenterstyle1"><div class="vcenterstyle2"><div class="textstyle3">  <span class="textstyle4">google</span>
 </div>
 </div></div></div><span class="textstyle4"><br/></span>  </div>
- <script src="open.js"></script>
- <script src="login.js"></script>
- <script src="minhaloja.js"></script>
+<!-- Scripts -->
+<script src="open.js"></script>
+<script src="login.js"></script>
+<script src="minhaloja.js"></script>
 </body>
 </html>
