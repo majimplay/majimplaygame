@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minha Conta</title>
+    <link rel="stylesheet" href="cabecaio.css">
+    <style>
+        /* Estilos adicionais específicos para esta página, se necessário */
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+        }
+        .content-area {
+            padding: 20px; /* Adiciona algum espaço ao redor do conteúdo */
+        }
+         /* Garante que o botão Sair tenha o mesmo estilo */
+        #logoutButton {
+             margin-top: 15px; /* Adiciona espaço acima do botão */
+        }
+    </style>
+</head>
+<body>
+    <div class="containerStyle">
+        <div class="containerPadding">
+            <div id="userInfo" class="hidden">
+                <div style="display: flex; align-items: center;">
+                    <img id="userPhoto" src="" alt="Foto do Usuário" style="width:100px; height:100px; border-radius:50%; margin-right:20px; border: 2px solid #FFFFFF;">
+                    <div>
+                        <h2 style="font-size:24pt; font-family:Arial, Helvetica, sans-serif; color:#A2BF3F;">Minha Conta</h2>
+                        <p style="font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#FFFFFF;"><strong>Nome:</strong> <span id="userName"></span></p>
+                        <p style="font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#FFFFFF;"><strong>Email:</strong> <span id="userEmail"></span></p>
+                    </div>
+                </div>
+                 <button id="logoutButton" class="buttonStyle">Sair</button>
+            </div>
+             <div id="loadingMessage" style="color: #FFFFFF; padding: 20px;">
+                Verificando login...
+             </div>
+        </div>
+    </div>
+
+    <div class="content-area">
+        <h1>Detalhes da Conta</h1>
+        <p>Aqui você pode adicionar mais informações ou configurações relacionadas à conta do usuário.</p>
+        </div>
+
+    <script>
+        // --- Constantes e Funções Essenciais (copiadas/adaptadas de script.js) ---
+        const USER_DATA_KEY = 'googleUserData'; // Chave para localStorage
+
+        // Função para decodificar o Token JWT (simplificada)
+        function jwtDecode(token) {
+            try {
+                const base64Url = token.split('.')[1];
+                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                const jsonPayload = decodeURIComponent(atob(base64).split('').map(c =>
+                    '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
+                ).join(''));
+
+                const payload = JSON.parse(jsonPayload);
+                // Verificar expiração do token
+                const currentTime = Date.now() / 1000;
+                if (payload.exp && payload.exp < currentTime) {
+                    console.log('Token expirado');
+                    return null; // Retorna null se expirado
+                }
+                return payload; // Retorna os dados do usuário
+            } catch (e) {
+                console.error("Erro decodificando JWT:", e);
+                return null; // Retorna null em caso de erro
+            }
+        }
+
+        // Função de Logout
+        function logout() {
+            localStorage.removeItem(USER_DATA_KEY); // Remove o token
+            // Redireciona para a página de login após o logout
+            window.location.href = 'index.html';
+        }
+
+        // --- Lógica da Página ---
+        window.addEventListener('load', () => {
+            // Obtém o token armazenado
+            const storedToken = localStorage.getItem(USER_DATA_KEY);
+            const userInfoDiv = document.getElementById('userInfo');
+            const loadingMessageDiv = document.getElementById('loadingMessage');
+            let userData = null;
+
+            if (storedToken) {
+                // Tenta decodificar o token
+                userData = jwtDecode(storedToken);
+            }
+
+            // Verifica se temos dados válidos do usuário
+            if (userData) {
+                // Usuário está logado e token é válido
+                console.log('Usuário logado:', userData);
+
+                // Atualiza a interface com os dados do usuário
+                document.getElementById('userName').textContent = userData.name || 'N/A';
+                document.getElementById('userEmail').textContent = userData.email || 'N/A';
+                const userPhotoImg = document.getElementById('userPhoto');
+                 if (userData.picture) {
+                    userPhotoImg.src = userData.picture;
+                 } else {
+                    userPhotoImg.alt = "Sem foto"; // Mensagem se não houver foto
+                 }
+
+
+                // Mostra a seção de informações do usuário e esconde a mensagem de carregamento
+                userInfoDiv.classList.remove('hidden');
+                loadingMessageDiv.classList.add('hidden'); // Esconde a mensagem "Verificando login..."
+
+                // Adiciona o listener para o botão de logout
+                const logoutButton = document.getElementById('logoutButton');
+                if(logoutButton) { // Verifica se o botão existe antes de adicionar o listener
+                   logoutButton.addEventListener('click', logout);
+                }
+
+            } else {
+                // Usuário não está logado ou token inválido/expirado
+                console.log('Usuário não logado ou token inválido/expirado. Redirecionando para index.html');
+                // Redireciona para a página de login
+                window.location.href = 'index.html';
+            }
+        });
+    </script>
+</body>
+</html>
