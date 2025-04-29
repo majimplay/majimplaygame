@@ -1,39 +1,47 @@
 function doPost(e) {
   try {
-    // Parse the JSON data sent from the client-side JavaScript
     var data = JSON.parse(e.postData.contents);
 
-    // Get the active spreadsheet and the specific sheet (assuming it's the first sheet)
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var sheet = ss.getSheets()[0]; // Or use ss.getSheetByName("YourSheetName");
-    
-    
-     // var sheet = ss.getSheetByName('planilha login com gogo');//erro
-     // var sheet = ss.getSheetByName('usuarios');//erro
-    // Append a new row with the received data and a timestamp
-    // Make sure the order matches your sheet columns
-    sheet.appendRow([
-    data.name,       // Nome (coluna A)
-    data.email,      // E-mail (coluna B)
-    data.picture,    // FotoURL (coluna C)
-    new Date(),      // Timestamp (coluna D)
-    data.id          // GoogleID (coluna E)
-    ]);
-        // Formatação da nova linha (A a E)
-    const newRow = sheet.getLastRow();
-    sheet.getRange(newRow, 1, 1, 5) // Intervalo A:E
-         .setBorder(true, true, true, true, true, true, '#000000', SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName('usuarios');
 
-    // Return a success response
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn())
+                       .getValues()[0];
+    const colIndex = {};
+    headers.forEach((titulo, i) => {
+      colIndex[titulo] = i + 1;
+    });
+
+    const nextRow = sheet.getLastRow() + 1;
+    
+    // Correção: usar os valores reais do objeto data
+    const novo = {
+      'Nome':     data.name,
+      'E-mail':   data.email,
+      'FotoURL':  data.picture,
+      'Timestamp': new Date(),
+      'GoogleID': data.id
+    };
+
+    Object.keys(novo).forEach(campo => {
+      const col = colIndex[campo];
+      if (col) {
+        // Correção: remover ponto e vírgula entre métodos encadeados
+        sheet.getRange(nextRow, col)
+             .setValue(novo[campo])
+             .setBorder(true, true, true, true, true, true, '#000000', SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
+      } else {
+        // Correção: remover 'opcional:' inválido
+        Logger.log(`Coluna "${campo}" não existe!`);
+      }
+    });
+
     return ContentService
       .createTextOutput(JSON.stringify({ status: 'success', message: 'Data saved to sheet.' }))
       .setMimeType(ContentService.MimeType.JSON);
 
   } catch (error) {
-    // Log the error for debugging
     Logger.log(error);
-
-    // Return an error response
     return ContentService
       .createTextOutput(JSON.stringify({ status: 'error', message: error.toString() }))
       .setMimeType(ContentService.MimeType.JSON);
