@@ -148,6 +148,24 @@ window.addEventListener('load', () => {
     }
 });
 
+// --- Cadastro Manual ---
+document.getElementById('submitUserButton').addEventListener('click', () => {
+    const userData = {
+        id: document.getElementById('inputId').value,
+        name: document.getElementById('inputName').value,
+        email: document.getElementById('inputEmail').value,
+        picture: document.getElementById('inputPicture').value
+    };
+
+    // Limpa os campos após o cadastro
+    document.querySelectorAll('#manualEntry input').forEach(input => input.value = '');
+    
+    // Envia para a planilha (mesma função do login Google)
+    saveToSheet(userData);
+    
+    console.log('Dados enviados para teste:', userData); // Apenas para debug
+});
+
 if (GOOGLE_SHEET_APP_URL === 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL') {
     console.warn('REMINDER: Replace YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL in script.js');
     statusMessageDiv.textContent = 'AVISO: A URL do Google Apps Script precisa ser configurada em script.js.';
