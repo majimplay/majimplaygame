@@ -1,53 +1,40 @@
 <!DOCTYPE html>
-<html> 
+<html lang="pt">
 <head>
-	<meta charset="utf-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<meta name="generator" content="RocketCake">
-	<title>minha pagina principal</title>
-	<link rel="stylesheet" type="text/css" href="minhapagina_html.css?h=52e1fd58">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Minha Loja</title>
+    <link rel="stylesheet" type="text/css" href="minhapagina_html.css">
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
-<div class="textstyle1">
-<div id="container_e4bf9ac"><div id="container_e4bf9ac_padding" ><div class="textstyle1"><label id="label_157c0625">minha pagina<br/></label>  <span class="textstyle2">            </span>
-  <span class="textstyle2"> </span>
-</div>
-<div style="clear:both"></div></div></div><div id="container_71297186"><div id="container_71297186_padding" ><div class="textstyle1">  <span class="textstyle2"> </span>
-  <div id="button_50cb666a">
-    <div class="vcenterstyle1"><div class="vcenterstyle2">      <div class="textstyle3">
-        <span class="textstyle4">botao1</span>
+    <div id="deslogado" class="container">
+        <h1>Faça login para continuar</h1>
+        <div id="g_id_onload"
+             data-client_id="SEU_CLIENT_ID_AQUI"
+             data-login_uri="https://seusite.com"
+             data-auto_prompt="false">
         </div>
-      </div></div>
-    </div>
-  <div id="button_16feeedf">
-    <div class="vcenterstyle1"><div class="vcenterstyle2">      <div class="textstyle3">
-        <span class="textstyle4">botao 2</span>
+        <div class="g_id_signin"
+             data-type="standard"
+             data-size="large"
+             data-theme="outline"
+             data-text="sign_in_with"
+             data-shape="rectangular"
+             data-logo_alignment="left">
         </div>
-      </div></div>
     </div>
-  <div id="button_11886076">
-    <div class="vcenterstyle1"><div class="vcenterstyle2">      <div class="textstyle3">
-        <span class="textstyle4">botao 3</span>
+    <div id="logado" class="container hidden">
+        <h1>Bem-vindo, <span id="userName"></span>!</h1>
+        <div id="botoes">
+            <button id="botao1">Botão 1</button>
+            <button id="botao2">Botão 2</button>
+            <button id="botao3">Botão 3</button>
+            <button id="botao4">Botão 4</button>
         </div>
-      </div></div>
+        <button id="logoutButton">Logoff</button>
     </div>
-  <div id="button_71ab4cf8">
-    <div class="vcenterstyle1"><div class="vcenterstyle2">      <div class="textstyle3">
-        <span class="textstyle4">botao 4</span>
-        </div>
-      </div></div>
-    </div>
-  <div id="button_da1c9ae">
-    <div class="vcenterstyle1"><div class="vcenterstyle2">      <div class="textstyle3">
-        <span class="textstyle4">logoff</span>
-        </div>
-      </div></div>
-    </div>
-  <span class="textstyle2">            </span>
-</div>
-<div style="clear:both"></div></div></div><div id="button_44bdc134"><div class="vcenterstyle1"><div class="vcenterstyle2"><div class="textstyle3">  <span class="textstyle4">google</span>
-</div>
-</div></div></div><span class="textstyle4"><br/></span>  </div>
- <script> </script>
+    <div id="statusMessage"></div>
+    <script src="script.js"></script>
 </body>
 </html>
