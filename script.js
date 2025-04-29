@@ -62,7 +62,7 @@ function saveToSheet(userData) {
     }
 
     statusMessageDiv.textContent = 'Enviando dados para a planilha...'; // Mensagem ajustada
-console.log('userData');
+console.log(userData);
     fetch(GOOGLE_SHEET_APP_URL, {
         method: 'POST',
         // ***** MUDANÇA AQUI: usar 'no-cors' *****
