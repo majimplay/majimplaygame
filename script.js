@@ -36,46 +36,43 @@ function jwtDecode(token) {
 }
 
 function updateUI(userData) {
+    if (!userNameSpan || !userEmailSpan || !userPhotoImg) return;
+
     if (userData) {
         userNameSpan.textContent = userData.name || 'N/A';
         userEmailSpan.textContent = userData.email || 'N/A';
         userPhotoImg.src = userData.picture || '';
         userInfoDiv.classList.remove('hidden');
         googleSignInButtonContainer.classList.add('hidden');
-        statusMessageDiv.textContent = '';
     } else {
-        userNameSpan.textContent = '';
-        userEmailSpan.textContent = '';
-        userPhotoImg.src = '';
-        userPhotoImg.alt = 'Foto do Usuário';
         userInfoDiv.classList.add('hidden');
         googleSignInButtonContainer.classList.remove('hidden');
-        statusMessageDiv.textContent = 'Você não está logado.';
     }
 }
 // --- Nova lógica para controle de iframes ---
+// --- Controle de Iframes ---
 function showIframe(iframeId) {
-    // Esconde todos os iframes
     document.querySelectorAll('.iframe-content').forEach(frame => {
         frame.classList.remove('active');
     });
-    
-    // Mostra o iframe selecionado
     const targetFrame = document.getElementById(iframeId);
     if(targetFrame) targetFrame.classList.add('active');
 }
 
-// Event listeners para os botões
+// Event Listeners
 document.getElementById('registo').addEventListener('click', () => showIframe('registoFrame'));
 document.getElementById('conta').addEventListener('click', () => {
-    // Verifica se está logado antes de mostrar o perfil
-    const storedToken = localStorage.getItem(USER_DATA_KEY);
-    if(storedToken) {
+    if (localStorage.getItem(USER_DATA_KEY)) {
         showIframe('contaFrame');
     } else {
-        statusMessageDiv.textContent = 'Faça login primeiro para acessar seu perfil!';
+        statusMessageDiv.textContent = 'Faça login primeiro!';
     }
 });
+
+document.querySelectorAll('.aiframe-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => showIframe(e.target.dataset.iframe));
+});
+
 
 // Lógica para os botões genéricos de aiframe
 document.querySelectorAll('.aiframe-btn').forEach(button => {
@@ -158,25 +155,14 @@ function logout() {
 }
  document.getElementById('logoutButton').addEventListener('click', logout);
 // --- Initialization ---
+// Inicialização
 window.addEventListener('load', () => {
     const storedToken = localStorage.getItem(USER_DATA_KEY);
-    
     if (storedToken) {
         const decodedToken = jwtDecode(storedToken);
-        if (decodedToken) {
-            updateUI({
-                name: decodedToken.name,
-                email: decodedToken.email,
-                picture: decodedToken.picture
-            });
-        } else {
-            logout();
-        }
-    } else {
-        updateUI(null);
+        decodedToken ? updateUI(decodedToken) : logout();
     }
 });
-
 
 
 if (GOOGLE_SHEET_APP_URL === 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL') {
