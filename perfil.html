@@ -27,5 +27,51 @@
   <span class="textstyle2">  Bairro<br/><br/></span>
 </div>
 <div style="clear:both"></div></div></div><span class="textstyle2"><br/><br/><br/><br/><br/><br/><br/><br/><br/></span>  </div>
+
+<script>
+// Adicione esta nova constante para a URL da planilha de clientes
+const CLIENT_SHEET_URL = 'SUA_URL_APPS_SCRIPT_PARA_CLIENTES';
+const GOOGLE_SHEET_APP_URL = 'https://script.google.com/macros/s/AKfycbzsZTv9V5arv6AaUfrX3EuIrOa37vJIsU6tPlrY6hTsvihUOhR-qhgf4knwPX5SxRi5-Q/exec'; // Sua URL
+// Adicione esta função para enviar dados do cliente
+function saveClientToSheet(clientData) {
+    if (!CLIENT_SHEET_URL) {
+        console.error('URL da planilha de clientes não configurada');
+        return;
+    }
+
+    fetch(CLIENT_SHEET_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(clientData)
+    })
+    .then(() => {
+        console.log('Dados do cliente enviados');
+        document.getElementById('statusMessage').textContent = 'Dados salvos com sucesso!';
+    })
+    .catch(error => {
+        console.error('Erro ao enviar dados do cliente:', error);
+        document.getElementById('statusMessage').textContent = 'Erro ao salvar dados!';
+    });
+}
+
+// Adicione este listener para o iframe de perfil
+window.addEventListener('message', (event) => {
+    if (event.data.type === 'SUBMIT_CLIENT_DATA') {
+        const userData = JSON.parse(localStorage.getItem(USER_DATA_KEY));
+        const decodedToken = jwtDecode(userData);
+        
+        const clientData = {
+            userId: decodedToken.sub,
+            ...event.data.formData
+        };
+        
+        saveClientToSheet(clientData);
+    }
+});
+
+	
+</script>
+	
 </body>
 </html>
