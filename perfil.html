@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="generator" content="RocketCake">
+    <title></title>
+    <link rel="stylesheet" type="text/css" href="perfil.css">
+</head>
+<body>
+    <div class="textstyle1">
+        <span class="textstyle2"><br/></span>
+        <div id="container_f645165">
+            <div id="container_f645165_padding">
+                <div class="textstyle1">
+                    <span class="textstyle2">Cliente</span>
+                    <input type="text" id="cliente" name="cliente" />
+                    <span class="textstyle2">CPF</span>
+                    <input type="text" id="cpf" name="cpf" />
+                    <span class="textstyle2">Telefone</span>
+                    <input type="text" id="tel" name="tel" />
+                    <span class="textstyle2">CEP</span>
+                    <input type="text" id="cep" name="cep" />
+                    <span class="textstyle2">Logradouro</span>
+                    <input type="text" id="logradouro" name="logradouro" />
+                    <span class="textstyle2">Cidade</span>
+                    <input type="text" id="cidade" name="cidade" />
+                    <span class="textstyle2">Estado</span>
+                    <input type="text" id="estado" name="estado" />
+                    <span class="textstyle2">Bairro</span>
+                    <input type="text" id="bairro" name="bairro" />
+                    <input type="button" id="enviar" value="Enviar" />
+                </div>
+                <div style="clear:both"></div>
+            </div>
+        </div>
+        <div id="statusMessage"></div>
+    </div>
+
+    <script>
+        // Substitua pela URL real do seu script Google Apps Script para clientes
+        const CLIENT_SHEET_URL = 'SUA_URL_APPS_SCRIPT_PARA_CLIENTES'; // Exemplo: 'https://script.google.com/macros/s/...'
+        
+        document.getElementById('enviar').addEventListener('click', () => {
+            const clientData = {
+                cliente: document.getElementById('cliente').value,
+                cpf: document.getElementById('cpf').value,
+                tel: document.getElementById('tel').value,
+                cep: document.getElementById('cep').value,
+                logradouro: document.getElementById('logradouro').value,
+                cidade: document.getElementById('cidade').value,
+                estado: document.getElementById('estado').value,
+                bairro: document.getElementById('bairro').value
+            };
+
+            fetch(CLIENT_SHEET_URL, {
+                method: 'POST',
+                mode: 'no-cors', // Usamos 'no-cors' como no script.js
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(clientData)
+            })
+            .then(() => {
+                console.log('Dados do cliente enviados');
+                document.getElementById('statusMessage').textContent = 'Dados salvos com sucesso!';
+            })
+            .catch(error => {
+                console.error('Erro ao enviar dados do cliente:', error);
+                document.getElementById('statusMessage').textContent = 'Erro ao salvar dados!';
+            });
+        });
+    </script>
+</body>
+</html>
