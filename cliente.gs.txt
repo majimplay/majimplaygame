@@ -1,12 +1,15 @@
 function doPost(e) {
   try {
     var data = JSON.parse(e.postData.contents);
-        const ss = SpreadsheetApp.getActiveSpreadsheet();
-    //var spreadsheetId = '1bgW-FdmwgbIUN6nES8Q2alyYVMnxApVwwshxSG0ZjHI'; // Substitua pelo ID da sua planilha
-    var sheet = SpreadsheetApp.openById(spreadsheetId).getSheetByName('Clientes');
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName('Clientes');
+   // var spreadsheetId = '1bgW-FdmwgbIUN6nES8Q2alyYVMnxApVwwshxSG0ZjHI'; // Substitua pelo ID da sua planilha
+   // var sheet = SpreadsheetApp.openById(spreadsheetId).getSheetByName('Clientes');
     var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
     var nextRow = sheet.getLastRow() + 1;
     // Supondo que os dados incluem campos do formulário e dados do usuário
+
+
     var newData = {
       'Cliente': data.cliente,
       'CPF': data.cpf,
@@ -29,7 +32,7 @@ function doPost(e) {
         Logger.log('Coluna não encontrada: ' + key);
       }
     }
-    return ContentService.createTextOutput(JSON.stringify({ status: 'success' })).setMimeType(ContentService.MimeType.JSON);
+    return ContentService.createTextOutput(JSON.stringify({ status: 'success' })).setMimeType(ContentService.MimeType.JSON).setHeader('Access-Control-Allow-Origin', '*').setHeader('Access-Control-Allow-Methods', 'POST'); 
   } catch (error) {
     Logger.log(error.toString());
     return ContentService.createTextOutput(JSON.stringify({ status: 'error', message: error.toString() })).setMimeType(ContentService.MimeType.JSON);
