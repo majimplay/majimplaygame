@@ -1,4 +1,5 @@
 // --- Configuration ---
+const GOOGLE_CLIENT_ID = '973179631050-iof6eqtfsi123m2nagdei5ov480bjgr4.apps.googleusercontent.com'
 const GOOGLE_SHEET_APP_URL = 'https://script.google.com/macros/s/AKfycbzsZTv9V5arv6AaUfrX3EuIrOa37vJIsU6tPlrY6hTsvihUOhR-qhgf4knwPX5SxRi5-Q/exec'; // Sua URL
 const USER_DATA_KEY = 'googleUserData'; // Key for localStorage
 
@@ -12,6 +13,25 @@ const logoutButton = document.getElementById('logoutButton');
 const statusMessageDiv = document.getElementById('statusMessage');
 
 // --- Functions ---
+function initializeGoogleSignIn() {
+    google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: handleCredentialResponse // Função já existente
+    });
+     google.accounts.id.renderButton(
+        document.getElementById('googleSignInButtonContainer'), // Container
+        { 
+            type: 'standard',
+            theme: 'outline', 
+            size: 'large', 
+            text: 'signin_with', 
+            shape: 'rectangular', 
+            logo_alignment: 'left' 
+        }
+    );
+       // Opcional: Exibe o One Tap prompt (ajuste conforme necessidade)
+    // google.accounts.id.prompt(); 
+}
 
 function jwtDecode(token) {
     try {
@@ -36,24 +56,50 @@ function jwtDecode(token) {
 }
 
 function updateUI(userData) {
+    if (!userNameSpan || !userEmailSpan || !userPhotoImg) return;
+
     if (userData) {
         userNameSpan.textContent = userData.name || 'N/A';
         userEmailSpan.textContent = userData.email || 'N/A';
         userPhotoImg.src = userData.picture || '';
         userInfoDiv.classList.remove('hidden');
         googleSignInButtonContainer.classList.add('hidden');
-        statusMessageDiv.textContent = '';
     } else {
-        userNameSpan.textContent = '';
-        userEmailSpan.textContent = '';
-        userPhotoImg.src = '';
-        userPhotoImg.alt = 'Foto do Usuário';
         userInfoDiv.classList.add('hidden');
         googleSignInButtonContainer.classList.remove('hidden');
-        statusMessageDiv.textContent = 'Você não está logado.';
     }
 }
+// --- Nova lógica para controle de iframes ---
+// --- Controle de Iframes ---
+function showIframe(iframeId) {
+    document.querySelectorAll('.iframe-content').forEach(frame => {
+        frame.classList.remove('active');
+    });
+    const targetFrame = document.getElementById(iframeId);
+    if(targetFrame) targetFrame.classList.add('active');
+}
 
+// Event Listeners
+document.getElementById('registo').addEventListener('click', () => showIframe('registoFrame'));
+document.getElementById('conta').addEventListener('click', () => {
+    if (localStorage.getItem(USER_DATA_KEY)) {
+        showIframe('contaFrame');
+    } else {
+        statusMessageDiv.textContent = 'Faça login primeiro!';
+    }
+});
+
+document.querySelectorAll('.aiframe-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => showIframe(e.target.dataset.iframe));
+});
+
+
+// Lógica para os botões genéricos de aiframe
+document.querySelectorAll('.aiframe-btn').forEach(button => {
+    button.addEventListener('click', (e) => {
+        showIframe(e.target.dataset.iframe);
+    });
+});
 function saveToSheet(userData) {
     if (!GOOGLE_SHEET_APP_URL || GOOGLE_SHEET_APP_URL === 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL') {
         console.warn('Google Apps Script URL not configured. Skipping sheet save.');
@@ -62,7 +108,7 @@ function saveToSheet(userData) {
     }
 
     statusMessageDiv.textContent = 'Enviando dados para a planilha...'; // Mensagem ajustada
-console.log('userData');
+console.log(userData);
     fetch(GOOGLE_SHEET_APP_URL, {
         method: 'POST',
         // ***** MUDANÇA AQUI: usar 'no-cors' *****
@@ -127,25 +173,18 @@ function logout() {
     updateUI(null);
     statusMessageDiv.textContent = 'Sessão encerrada.';
 }
-
+ document.getElementById('logoutButton').addEventListener('click', logout);
 // --- Initialization ---
+// Inicialização
 window.addEventListener('load', () => {
+    window.addEventListener('load', () => {
+    initializeGoogleSignIn(); // Inicializa o Google Sign-In
     const storedToken = localStorage.getItem(USER_DATA_KEY);
-    
     if (storedToken) {
         const decodedToken = jwtDecode(storedToken);
-        if (decodedToken) {
-            updateUI({
-                name: decodedToken.name,
-                email: decodedToken.email,
-                picture: decodedToken.picture
-            });
-        } else {
-            logout();
-        }
-    } else {
-        updateUI(null);
+        decodedToken ? updateUI(decodedToken) : logout();
     }
+});
 });
 
 if (GOOGLE_SHEET_APP_URL === 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL') {
