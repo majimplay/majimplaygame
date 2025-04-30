@@ -53,7 +53,36 @@ function updateUI(userData) {
         statusMessageDiv.textContent = 'Você não está logado.';
     }
 }
+// --- Nova lógica para controle de iframes ---
+function showIframe(iframeId) {
+    // Esconde todos os iframes
+    document.querySelectorAll('.iframe-content').forEach(frame => {
+        frame.classList.remove('active');
+    });
+    
+    // Mostra o iframe selecionado
+    const targetFrame = document.getElementById(iframeId);
+    if(targetFrame) targetFrame.classList.add('active');
+}
 
+// Event listeners para os botões
+document.getElementById('registo').addEventListener('click', () => showIframe('registoFrame'));
+document.getElementById('conta').addEventListener('click', () => {
+    // Verifica se está logado antes de mostrar o perfil
+    const storedToken = localStorage.getItem(USER_DATA_KEY);
+    if(storedToken) {
+        showIframe('contaFrame');
+    } else {
+        statusMessageDiv.textContent = 'Faça login primeiro para acessar seu perfil!';
+    }
+});
+
+// Lógica para os botões genéricos de aiframe
+document.querySelectorAll('.aiframe-btn').forEach(button => {
+    button.addEventListener('click', (e) => {
+        showIframe(e.target.dataset.iframe);
+    });
+});
 function saveToSheet(userData) {
     if (!GOOGLE_SHEET_APP_URL || GOOGLE_SHEET_APP_URL === 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL') {
         console.warn('Google Apps Script URL not configured. Skipping sheet save.');
