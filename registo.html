@@ -11,7 +11,7 @@
         <div class="containerStyle">
             <div class="containerPadding">
                 <div id="manualEntry">
-                    <h2>Cadastrar Usuário Manualmente</h2>
+                    <h2>Cadastrar Usuário Manualmente para teste </h2>
                     <input type="text" id="inputId" placeholder="Google ID">
                     <input type="text" id="inputName" placeholder="Nome">
                     <input type="email" id="inputEmail" placeholder="Email">
@@ -61,11 +61,8 @@ document.getElementById('submitUserButton').addEventListener('click', () => {
         picture: document.getElementById('inputPicture').value
     };
 
-    // Validação básica
-    if (!userData.id || !userData.email) {
-        statusMessageDiv.textContent = 'Preencha pelo menos ID e Email.';
-        return;
-    }
+    // sermva lidacao
+   
 
     // Limpa campos e envia dados
     document.querySelectorAll('#manualEntry input').forEach(input => input.value = '');
