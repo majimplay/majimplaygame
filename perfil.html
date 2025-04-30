@@ -1,27 +1,29 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html> 
 <head>
-    <meta charset="UTF-8">
-    <title>Meu Perfil</title>
-    <link rel="stylesheet" href="cabecaio.css">
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="generator" content="RocketCake">
+	<title></title>
+	<link rel="stylesheet" type="text/css" href="perfil.css">
 </head>
 <body>
-    <div class="container" style="padding: 20px;">
-        <h2 style="color: #A2BF3F;">Meu Perfil</h2>
-        <div id="profileContent">
-            <!-- O conteúdo será carregado dinamicamente via JavaScript -->
-        </div>
-    </div>
-    <script>
-        // Carrega dados do localStorage
-        const userData = JSON.parse(localStorage.getItem('googleUserData'));
-        if(userData) {
-            document.getElementById('profileContent').innerHTML = `
-                <p>Nome: ${userData.name || 'N/A'}</p>
-                <p>Email: ${userData.email || 'N/A'}</p>
-                <img src="${userData.picture || ''}" alt="Foto do perfil" style="max-width: 150px;">
-            `;
-        }
-    </script>
+<div class="textstyle1">
+<span class="textstyle2"><br/></span><div id="container_f645165"><div id="container_f645165_padding" ><div class="textstyle1">  <span class="textstyle2">   cliente     email  <br/><br/>   </span>
+<input type="text" value="" title="" name="TextEdit2"  id="edit_5f0116bc" >
+  <span class="textstyle2"> cpf    </span>
+<input type="text" value="" title="" name="TextEdit1"  id="edit_15ec8179" >
+<span class="textstyle2"> tel<br/></span><span class="textstyle2"><br/><br/>   </span><input type="text" value="" title="" name="TextEdit3"  id="edit_4915d68c" >
+  <span class="textstyle2"> cep   </span>
+<input type="text" value="" title="" name="TextEdit4"  id="edit_30ba40bc" >
+  <span class="textstyle2"> Logradouro   </span>
+<input type="text" value="" title="" name="TextEdit5"  id="edit_7912be8c" >
+  <span class="textstyle2"> Bairro<br/><br/>   </span>
+<input type="text" value="" title="" name="TextEdit6"  id="edit_65b495a2" >
+  <span class="textstyle2"> Cidade    </span>
+<input type="text" value="" title="" name="TextEdit7"  id="edit_3f14847d" >
+  <span class="textstyle2">  Estado<br/><br/></span>
+</div>
+<div style="clear:both"></div></div></div><span class="textstyle2"><br/><br/><br/><br/><br/><br/><br/><br/><br/></span>  </div>
 </body>
 </html>
