@@ -1,4 +1,5 @@
 // --- Configuration ---
+const GOOGLE_CLIENT_ID = '973179631050-iof6eqtfsi123m2nagdei5ov480bjgr4.apps.googleusercontent.com'
 const GOOGLE_SHEET_APP_URL = 'https://script.google.com/macros/s/AKfycbzsZTv9V5arv6AaUfrX3EuIrOa37vJIsU6tPlrY6hTsvihUOhR-qhgf4knwPX5SxRi5-Q/exec'; // Sua URL
 const USER_DATA_KEY = 'googleUserData'; // Key for localStorage
 
@@ -12,6 +13,25 @@ const logoutButton = document.getElementById('logoutButton');
 const statusMessageDiv = document.getElementById('statusMessage');
 
 // --- Functions ---
+function initializeGoogleSignIn() {
+    google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: handleCredentialResponse // Função já existente
+    });
+     google.accounts.id.renderButton(
+        document.getElementById('googleSignInButtonContainer'), // Container
+        { 
+            type: 'standard',
+            theme: 'outline', 
+            size: 'large', 
+            text: 'signin_with', 
+            shape: 'rectangular', 
+            logo_alignment: 'left' 
+        }
+    );
+       // Opcional: Exibe o One Tap prompt (ajuste conforme necessidade)
+    // google.accounts.id.prompt(); 
+}
 
 function jwtDecode(token) {
     try {
@@ -157,13 +177,15 @@ function logout() {
 // --- Initialization ---
 // Inicialização
 window.addEventListener('load', () => {
+    window.addEventListener('load', () => {
+    initializeGoogleSignIn(); // Inicializa o Google Sign-In
     const storedToken = localStorage.getItem(USER_DATA_KEY);
     if (storedToken) {
         const decodedToken = jwtDecode(storedToken);
         decodedToken ? updateUI(decodedToken) : logout();
     }
 });
-
+});
 
 if (GOOGLE_SHEET_APP_URL === 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL') {
     console.warn('REMINDER: Replace YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL in script.js');
