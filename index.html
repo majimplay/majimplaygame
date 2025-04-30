@@ -6,139 +6,69 @@
     <title>Login e Gerenciamento</title>
     <link rel="stylesheet" href="cabecaio.css">
     <style>
-        /* Estilos gerais e para iframes */
-        body {
-            font-family: sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f4f4f4; /* Cor de fundo suave */
-            color: #333;
-        }
-
-        .container {
-            max-width: 900px; /* Largura máxima */
-            margin: 20px auto; /* Centraliza */
-            background-color: #fff;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-        }
-
-        /* Estilos reaproveitados de cabecaio.css (adaptados) */
-        .containerStyle { /* Renomeado de .container para evitar conflito */
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            overflow: hidden; /* Garante que padding funcione com bordas */
-        }
-
-        .containerPadding {
-             padding: 20px;
-        }
-
-        .buttonStyle {
-            background-color: #A2BF3F; /* Verde característico */
-            color: white;
-            border: none;
-            padding: 10px 18px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 1em;
-            transition: background-color 0.3s ease;
-            margin-right: 5px; /* Espaçamento entre botões */
-            margin-bottom: 5px; /* Espaçamento inferior */
-        }
-
-        .buttonStyle:hover {
-            background-color: #8aab34; /* Tom mais escuro no hover */
-        }
-
-        .button-container {
-            display: flex; /* Alinha botões */
-            flex-wrap: wrap; /* Permite quebra de linha em telas menores */
-            gap: 10px; /* Espaçamento entre botões */
-            margin-bottom: 15px;
-            margin-top: 15px; /* Espaço acima dos botões */
-        }
-
-        #userInfo img {
-            width: 50px;
-            height: 50px;
-            border-radius: 50%; /* Foto redonda */
-            margin-right: 15px;
-            vertical-align: middle; /* Alinha imagem com texto */
-            border: 2px solid #A2BF3F;
-        }
-
-         #userInfo p {
-             margin: 5px 0; /* Espaçamento entre nome e email */
-             display: inline-block; /* Para alinhar com a imagem */
-             vertical-align: middle;
-         }
-
-        .hidden {
-            display: none;
-        }
-
-        /* Novo CSS para iframes */
         .iframe-container {
             margin-top: 20px;
             border: 2px solid #A2BF3F;
             border-radius: 8px;
-            overflow: hidden; /* Para conter o iframe */
-            min-height: 500px; /* Altura mínima para visualização */
+            overflow: hidden;
         }
-
+        
         .iframe-content {
             width: 100%;
-            height: 500px; /* Altura fixa ou ajuste conforme necessário */
+            height: 500px;
             border: none;
-            display: none; /* Escondido por padrão */
+            display: none;
         }
-
+        
         .iframe-content.active {
-            display: block; /* Mostra o iframe ativo */
+            display: block;
         }
 
-        #statusMessage {
-            margin-top: 15px;
-            padding: 10px;
-            border-radius: 5px;
-            background-color: #e0e0e0;
-            color: #333;
-            text-align: center;
+        .button-container {
+            gap: 10px;
+            margin-bottom: 15px;
         }
 
-        h2 {
-             color: #A2BF3F;
-             margin-bottom: 15px;
+        .hidden {
+            display: none !important;
         }
-
-        /* Estilos para o botão do Google (ajuste fino se necessário) */
-        #googleSignInButtonContainer > div {
-            display: inline-block; /* Ou ajuste conforme layout desejado */
-        }
-
     </style>
 </head>
 <body>
     <div class="container">
         <div class="containerStyle">
             <div class="containerPadding">
-                <h2>Área de Login e Perfil</h2>
+                <!-- Logged-out state -->
                 <div id="googleSignInButtonContainer">
-                    <p>Faça login com sua conta Google:</p>
+                    <div id="g_id_onload"
+                         data-client_id="21514234895-keiqos567ifvs4hjkg3l1q5mvun8lri0.apps.googleusercontent.com"
+                         data-context="signin"
+                         data-ux_mode="popup"
+                         data-callback="handleCredentialResponse"
+                         data-auto_prompt="false">
+                    </div>
+                    <div class="g_id_signin"
+                         data-type="standard"
+                         data-shape="rectangular"
+                         data-theme="outline"
+                         data-text="signin_with"
+                         data-size="large"
+                         data-logo_alignment="left">
+                    </div>
                 </div>
 
+                <!-- Logged-in state -->
                 <div id="userInfo" class="hidden">
-                     <img id="userPhoto" src="" alt="Foto do Usuário">
-                     <div>
-                         <p><strong>Nome:</strong> <span id="userName"></span></p>
-                         <p><strong>Email:</strong> <span id="userEmail"></span></p>
-                     </div>
+                    <div style="display: flex; align-items: center;">
+                        <img id="userPhoto" src="" alt="Foto" style="width:100px; height:100px; border-radius:50%; margin-right:20px;">
+                        <div>
+                            <h2 style="font-size:24pt; color:#A2BF3F;">Bem-vindo, <span id="userName"></span>!</h2>
+                            <p style="font-size:12pt; color:#FFFFFF;"><strong>Email:</strong> <span id="userEmail"></span></p>
+                        </div>
+                    </div>
                     <div class="button-container">
-                        <button id="registo" class="buttonStyle">Registro Manual</button>
-                        <button id="conta" class="buttonStyle">Meu Perfil (iFrame)</button>
+                        <button id="registo" class="buttonStyle">Registro</button>
+                        <button id="conta" class="buttonStyle">Meu Perfil</button>
                         <button class="buttonStyle aiframe-btn" data-iframe="aiframe1">Aiframe 1</button>
                         <button class="buttonStyle aiframe-btn" data-iframe="aiframe2">Aiframe 2</button>
                         <button id="logoutButton" class="buttonStyle">Sair</button>
@@ -147,37 +77,22 @@
             </div>
         </div>
 
+        <!-- Iframes -->
         <div class="iframe-container">
-            <iframe src="registo.html" class="iframe-content" id="registoFrame" title="Formulário de Registro Manual"></iframe>
-            <iframe src="perfil.html" class="iframe-content" id="contaFrame" title="Página de Perfil do Usuário"></iframe>
-             <div class="iframe-content" id="aiframe1">
-                <h2 style="padding: 20px; color: #A2BF3F;">Conteúdo Aiframe 1 - Em desenvolvimento</h2>
-                <p style="padding: 0 20px;">Esta é a área para o conteúdo do Aiframe 1.</p>
+            <iframe src="registo.html" class="iframe-content" id="registoFrame"></iframe>
+            <iframe src="perfil.html" class="iframe-content" id="contaFrame"></iframe>
+            <div class="iframe-content" id="aiframe1">
+                <h2 style="padding: 20px; color: #A2BF3F;">Aiframe 1 - Em desenvolvimento</h2>
             </div>
             <div class="iframe-content" id="aiframe2">
-                <h2 style="padding: 20px; color: #A2BF3F;">Conteúdo Aiframe 2 - Em desenvolvimento</h2>
-                 <p style="padding: 0 20px;">Esta é a área para o conteúdo do Aiframe 2.</p>
+                <h2 style="padding: 20px; color: #A2BF3F;">Aiframe 2 - Em desenvolvimento</h2>
             </div>
         </div>
 
-        <div id="statusMessage">Aguardando ação...</div>
+        <div id="statusMessage"></div>
     </div>
 
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="script.js"></script>
-
-    <script>
-      window.onload = function () {
-        google.accounts.id.initialize({
-          client_id: '21514234895-keiqos567ifvs4hjkg3l1q5mvun8lri0.apps.googleusercontent.com', // SUBSTITUA PELO SEU CLIENT ID REAL
-          callback: handleCredentialResponse // Função definida em script.js
-        });
-        google.accounts.id.renderButton(
-          document.getElementById('googleSignInButtonContainer'),
-          { theme: 'outline', size: 'large' }  // Customize button appearance
-        );
-        // google.accounts.id.prompt(); // Opcional: Exibe o pop-up One Tap
-      };
-    </script>
 </body>
 </html>
