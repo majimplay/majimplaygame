@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Meu Perfil</title>
+    <link rel="stylesheet" href="cabecaio.css">
+</head>
+<body>
+    <div class="container" style="padding: 20px;">
+        <h2 style="color: #A2BF3F;">Meu Perfil</h2>
+        <div id="profileContent">
+            <!-- O conteúdo será carregado dinamicamente via JavaScript -->
+        </div>
+    </div>
+    <script>
+        // Carrega dados do localStorage
+        const userData = JSON.parse(localStorage.getItem('googleUserData'));
+        if(userData) {
+            document.getElementById('profileContent').innerHTML = `
+                <p>Nome: ${userData.name || 'N/A'}</p>
+                <p>Email: ${userData.email || 'N/A'}</p>
+                <img src="${userData.picture || ''}" alt="Foto do perfil" style="max-width: 150px;">
+            `;
+        }
+    </script>
+</body>
+</html>
