@@ -38,58 +38,39 @@
     </div>
 
     <script>
-        // Substitua pela URL real do seu script Google Apps Script para clientes
-        const CLIENT_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxqcYDQhj7lwxF6cVKhjWlgu09E6gxPu64sYcT0zsO-h3VuYknHxmlRBSeKpaJBBDfIoQ-g/exec'; // Exemplo: 'https://script.google.com/macros/s/...'
+        const CLIENT_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxqcYDQhj7lwxF6cVKhjWlgu09E6gxPu64sYcT0zsO-h3VuYknHxmlRBSeKpaJBBDfIoQ-g/exec';
+        const statusMessageDiv = document.getElementById('statusMessage');
                
         function saveToClient(clientData) {
-    if (!GOOGLE_SHEET_APP_URL || GOOGLE_SHEET_APP_URL === 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL') {
-        console.warn('Google Apps Script URL not configured. Skipping sheet save.');
-        statusMessageDiv.textContent = 'Login bem-sucedido (salvamento em planilha desativado - URL não configurada).';
-        return;
-    }
-    statusMessageDiv.textContent = 'Enviando dados para a planilha...'; // Mensagem ajustada
-     console.log(userData);
-    fetch(GOOGLE_SHEET_APP_URL, {
-        method: 'POST',
-        // ***** MUDANÇA AQUI: usar 'no-cors' *****
-        mode: 'no-cors',
-        cache: 'no-cache',
-        headers: {
-            // Content-Type ainda é útil, mesmo que a resposta não seja lida
-           'Content-Type': 'application/json',
-        },
-      body: JSON.stringify({
-     cliente: document.getElementById('cliente').value,
-                cpf: document.getElementById('cpf').value,
-                tel: document.getElementById('tel').value,
-                cep: document.getElementById('cep').value,
-                logradouro: document.getElementById('logradouro').value,
-                cidade: document.getElementById('cidade').value,
-                estado: document.getElementById('estado').value,
-                bairro: document.getElementById('bairro').value
-})
-    })
-    .then(response => {
-        // Com 'no-cors', a resposta é sempre 'opaque' e não podemos ler o status ou corpo.
-        // Assumimos que o envio foi bem-sucedido se não houver erro de rede imediato.
-        console.log('Request sent to Apps Script (mode: no-cors). Response is opaque.');
-        statusMessageDiv.textContent = 'Login bem-sucedido! (Dados enviados para planilha - verifique a planilha).';
-        // Não podemos confirmar o sucesso real aqui, apenas que a requisição foi enviada.
-    })
-    .catch((error) => {
-        // Erros aqui são geralmente problemas de rede (DNS, offline) ou bloqueios mais severos.
-        console.error('Error sending data to Google Sheet (no-cors mode):', error);
-        statusMessageDiv.textContent = `Login bem-sucedido, mas falha ao enviar dados para a planilha: ${error.message}. Verifique a conexão ou configurações de rede.`;
-    });
-}
+            if (!CLIENT_SHEET_URL) {
+                console.warn('Google Apps Script URL não configurada.');
+                statusMessageDiv.textContent = 'URL do Google Apps Script não configurada.';
+                return;
+            }
+            
+            statusMessageDiv.textContent = 'Enviando dados para a planilha...';
+            
+            fetch(CLIENT_SHEET_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                cache: 'no-cache',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(clientData)
+            })
+            .then(() => {
+                console.log('Dados enviados para o Apps Script');
+                statusMessageDiv.textContent = 'Dados enviados com sucesso! Verifique a planilha.';
+            })
+            .catch((error) => {
+                console.error('Erro ao enviar dados:', error);
+                statusMessageDiv.textContent = `Erro ao enviar dados: ${error.message}`;
+            });
+        }
 
-
-
-
-
-        
         document.getElementById('enviar').addEventListener('click', () => {
-            var clientData = {
+            const clientData = {
                 cliente: document.getElementById('cliente').value,
                 cpf: document.getElementById('cpf').value,
                 tel: document.getElementById('tel').value,
@@ -99,8 +80,8 @@
                 estado: document.getElementById('estado').value,
                 bairro: document.getElementById('bairro').value
             };
-               saveToClient(clientData);
-        }
+            saveToClient(clientData);
+        });
     </script>
 </body>
 </html>
