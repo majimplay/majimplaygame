@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cadastro Manual</title>
+    <link rel="stylesheet" href="cabecaio.css">
+</head>
+<body>
+    <div class="container">
+        <div class="containerStyle">
+            <div class="containerPadding">
+                <div id="manualEntry">
+                    <h2>Cadastrar Usuário Manualmente</h2>
+                    <input type="text" id="inputId" placeholder="Google ID">
+                    <input type="text" id="inputName" placeholder="Nome">
+                    <input type="email" id="inputEmail" placeholder="Email">
+                    <input type="text" id="inputPicture" placeholder="URL da Foto">
+                    <button id="submitUserButton">Enviar</button>
+                </div>
+                <div id="statusMessage"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script específico para cadastro -->
+    <script>
+// --- Configuração ---
+const GOOGLE_SHEET_APP_URL = 'https://script.google.com/macros/s/AKfycbzsZTv9V5arv6AaUfrX3EuIrOa37vJIsU6tPlrY6hTsvihUOhR-qhgf4knwPX5SxRi5-Q/exec';
+const statusMessageDiv = document.getElementById('statusMessage');
+
+// --- Função para enviar dados à planilha ---
+function saveToSheet(userData) {
+    if (!GOOGLE_SHEET_APP_URL) {
+        statusMessageDiv.textContent = 'Erro: URL da planilha não configurada.';
+        return;
+    }
+
+    statusMessageDiv.textContent = 'Enviando dados...';
+    
+    fetch(GOOGLE_SHEET_APP_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userData)
+    })
+    .then(() => {
+        statusMessageDiv.textContent = 'Dados enviados com sucesso!';
+    })
+    .catch((error) => {
+        statusMessageDiv.textContent = `Erro: ${error.message}`;
+    });
+}
+
+// --- Evento de cadastro manual ---
+document.getElementById('submitUserButton').addEventListener('click', () => {
+    const userData = {
+        id: document.getElementById('inputId').value,
+        name: document.getElementById('inputName').value,
+        email: document.getElementById('inputEmail').value,
+        picture: document.getElementById('inputPicture').value
+    };
+
+    // Validação básica
+    if (!userData.id || !userData.email) {
+        statusMessageDiv.textContent = 'Preencha pelo menos ID e Email.';
+        return;
+    }
+
+    // Limpa campos e envia dados
+    document.querySelectorAll('#manualEntry input').forEach(input => input.value = '');
+    saveToSheet(userData);
+});
+      
+    </script>
+</body>
+</html>
