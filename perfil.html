@@ -21,8 +21,11 @@
   <span class="textstyle2"> Cidade    </span>
 <input type="text" value="" title="" name="TextEdit7"  id="edit_3f14847d" >
   <span class="textstyle2">  Estado        </span>
-<input name="enviarcliente" type="submit" value="enviar" title=""  id="button_2fe25639" >
-  <span class="textstyle2"><br/>   <br/>   </span>
+	     <!-- bbotao enviar-->
+<!--<input name="enviarcliente" type="submit" value="enviar" title=""  id="button_2fe25639" > -->
+ <!-- <span class="textstyle2"><br/>   <br/>   </span> -->
+  <button class="textstyle2 aiframe-btn" id="button_2fe25639" >enviar</button>	
+	   <!-- bbotao enviar-->
 <input type="text" value="" title="" name="TextEdit5"  id="edit_7912be8c" >
   <span class="textstyle2">  Bairro<br/><br/></span>
 </div>
@@ -56,20 +59,16 @@ function saveClientToSheet(clientData) {
 }
 
 // Adicione este listener para o iframe de perfil
-window.addEventListener('message', (event) => {
-    if (event.data.type === 'SUBMIT_CLIENT_DATA') {
-        const userData = JSON.parse(localStorage.getItem(USER_DATA_KEY));
-        const decodedToken = jwtDecode(userData);
-        
-        const clientData = {
-            userId: decodedToken.sub,
-            ...event.data.formData
-        };
-        
-        saveClientToSheet(clientData);
-    }
-});
+	
+edit_5f0116bc   edit_15ec8179  edit_30ba40bc edit_65b495a2 edit_3f14847d  edit_7912be8c
 
+	document.getElementById('button_2fe25639').addEventListener('click', () => {
+		const Client= body: JSON.stringify({' document.getElementById('edit_5f0116bc')  document.getElementById('edit_15ec8179')  document.getElementById('edit_30ba40bc')  document.getElementById('edit_65b495a2') document.getElementById('edit_3f14847d')  document.getElementById('edit_7912be8c') '} ); 
+		
+		saveClientToSheet(client);
+		 console.log('Dados do cliente enviados');
+		 console.log(client);
+	}
 	
 </script>
 	
