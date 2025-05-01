@@ -46,33 +46,37 @@
     </form>
 
 <script>
-document.getElementById('meuForm').addEventListener('submit', function(e) {
+document.getElementById('meuForm').addEventListener('submit', async function(e) {
     e.preventDefault();
     
     const formData = new FormData(this);
-    const dados = {};
-    formData.forEach((value, key) => dados[key] = value);
+    const dados = Object.fromEntries(formData.entries());
     
     const scriptURL = 'https://script.google.com/macros/s/AKfycbworSJdoGzAh9k6DZ8FO5qyeyb9gc7ISq8MgaIqmkmQwXeLrCPTbqZBwPA_Kq1-GIhIPw/exec';
     
-    fetch(scriptURL, {
-        mode: 'no-cors',
-        method: 'POST',
-        body: JSON.stringify(dados),
-        headers: {
-            'Content-Type': 'application/json'
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
+    try {
+        const response = await fetch(scriptURL, {
+            method: 'POST',
+            body: JSON.stringify(dados),
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            redirect: "manual" // Impede redirecionamentos automáticos
+        });
+
+        // Converter a resposta manualmente
+        const text = await response.text();
+        const data = text ? JSON.parse(text) : {};
+
         if(data.result === 'success') {
             alert('Dados salvos com sucesso!');
-            document.getElementById('meuForm').reset();
+            this.reset();
         } else {
-            alert('Erro: ' + data.message);
+            alert('Erro: ' + (data.message || 'Resposta inválida do servidor'));
         }
-    })
-    .catch(error => alert('Erro na requisição: ' + error.message));
+    } catch (error) {
+        alert('Erro na requisição: ' + error.message);
+    }
 });
 </script>
 </body>
