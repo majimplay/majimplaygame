@@ -49,8 +49,10 @@
 document.getElementById('meuForm').addEventListener('submit', async function(e) {
     e.preventDefault();
     
-    const formData = new FormData(this);
-    const dados = Object.fromEntries(formData.entries());
+    const dados = {
+        nome: this.nome.value,
+        email: this.email.value
+    };
     
     const scriptURL = 'https://script.google.com/macros/s/AKfycbworSJdoGzAh9k6DZ8FO5qyeyb9gc7ISq8MgaIqmkmQwXeLrCPTbqZBwPA_Kq1-GIhIPw/exec';
     
@@ -61,21 +63,19 @@ document.getElementById('meuForm').addEventListener('submit', async function(e) 
             headers: {
                 'Content-Type': 'application/json'
             },
-            redirect: "manual" // Impede redirecionamentos automáticos
+            credentials: 'omit'
         });
 
-        // Converter a resposta manualmente
-        const text = await response.text();
-        const data = text ? JSON.parse(text) : {};
-
+        const data = await response.json();
+        
         if(data.result === 'success') {
             alert('Dados salvos com sucesso!');
             this.reset();
         } else {
-            alert('Erro: ' + (data.message || 'Resposta inválida do servidor'));
+            alert('Erro: ' + (data.message || 'Resposta inválida'));
         }
     } catch (error) {
-        alert('Erro na requisição: ' + error.message);
+        alert('Erro na comunicação: ' + error.message);
     }
 });
 </script>
