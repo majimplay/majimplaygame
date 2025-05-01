@@ -1,0 +1,99 @@
+/**
+ * ID da sua planilha Google.
+ * Confirme se este ID corresponde ao da sua planilha na URL.
+ */
+const SPREADSHEET_ID = '1F3pnnhABlH_I0t104VqNaYOy7GSmjT4FsK1CRVsyS9w';
+
+/**
+ * Nome da página (aba) dentro da sua planilha onde os dados serão salvos.
+ * !!! ATUALIZADO PARA CORRESPONDER À SUA PLANILHA !!!
+ */
+const SHEET_NAME = 'Dados'; // <-- Ajustado para o nome da sua aba
+
+/**
+ * Função que é executada quando o script recebe uma requisição POST.
+ * @param {Object} e - O objeto de evento que contém os dados da requisição.
+ */
+function doPost(e) {
+  let lock = LockService.getScriptLock(); // Previne execuções simultâneas que podem corromper dados
+  lock.waitLock(30000); // Espera até 30 segundos pelo bloqueio
+
+  try {
+    // Abre a planilha pelo ID
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    if (!ss) {
+      throw new Error(`Não foi possível abrir a planilha com o ID: ${SPREADSHEET_ID}. Verifique o ID e as permissões.`);
+    }
+
+    // Acessa a aba específica pelo nome
+    const sheet = ss.getSheetByName(SHEET_NAME);
+
+    // Verifica se a aba foi encontrada
+    if (!sheet) {
+      throw new Error(`Aba "${SHEET_NAME}" não encontrada na planilha. Verifique o nome da aba.`);
+    }
+
+    // Analisa os dados JSON recebidos no corpo da requisição
+    let data;
+    if (e && e.postData && e.postData.contents) {
+        data = JSON.parse(e.postData.contents);
+    } else {
+        throw new Error("Nenhum dado recebido na requisição POST.");
+    }
+
+
+    // Verifica se o campo 'nome' existe nos dados recebidos
+    if (!data || typeof data.nome === 'undefined') { // Verifica se data existe e tem a propriedade nome
+      throw new Error("O campo 'nome' não foi encontrado ou está vazio nos dados recebidos.");
+    }
+
+    // Pega o nome recebido
+    const nome = data.nome;
+    // Cria um timestamp (data e hora atuais)
+    const timestamp = new Date();
+
+    // Adiciona uma nova linha na planilha com o timestamp e o nome
+    // Garante que a escrita ocorra na próxima linha vazia
+    sheet.appendRow([timestamp, nome]);
+
+    // Retorna uma resposta de sucesso
+    return ContentService.createTextOutput(JSON.stringify({ status: 'success', message: 'Nome adicionado com sucesso.' }))
+      .setMimeType(ContentService.MimeType.JSON);
+
+  } catch (error) {
+    // Loga o erro detalhado no console do Apps Script para depuração
+    Logger.log(`Erro ao processar POST: ${error.message}\nStack: ${error.stack}`);
+    if (e && e.postData) {
+        Logger.log(`Dados recebidos: ${e.postData.contents}`);
+    } else {
+        Logger.log("Nenhum dado postData no objeto de evento 'e'.");
+    }
+
+
+    // Retorna uma resposta de erro
+    return ContentService.createTextOutput(JSON.stringify({ status: 'error', message: `Erro interno do servidor: ${error.message}` }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } finally {
+    lock.releaseLock(); // Libera o bloqueio
+  }
+}
+
+// Função de teste opcional para verificar se o script consegue acessar a planilha
+function testAppend() {
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+     if (!ss) {
+      Logger.log(`Erro no teste: Não foi possível abrir a planilha com o ID: ${SPREADSHEET_ID}.`);
+      return;
+    }
+    const sheet = ss.getSheetByName(SHEET_NAME);
+    if (!sheet) {
+      Logger.log(`Erro no teste: Aba "${SHEET_NAME}" não encontrada.`);
+      return;
+    }
+    sheet.appendRow([new Date(), "Nome de Teste via Função Teste"]);
+    Logger.log("Linha de teste adicionada com sucesso na aba '" + SHEET_NAME + "'.");
+  } catch (error) {
+    Logger.log(`Erro no teste: ${error.message}`);
+  }
+}
