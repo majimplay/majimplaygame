@@ -1,49 +1,73 @@
+
 function doPost(e) {
   try {
-    var data = JSON.parse(e.postData.contents);
+    const data = JSON.parse(e.postData.contents);
 
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const sheet = ss.getSheetByName('usuarios');
 
-    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn())
-                       .getValues()[0];
+    // Obtém índices das colunas
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
     const colIndex = {};
-    headers.forEach((titulo, i) => {
-      colIndex[titulo] = i + 1;
-    });
+    headers.forEach((titulo, i) => (colIndex[titulo] = i + 1));
 
+    // --- Verificação de ID ---
+    const googleId = data.id.toString(); // Mantém como texto para IDs longos
+    const idColumn = colIndex['GoogleID'];
+
+    // Busca IDs existentes (também como texto)
+    let existingIds = [];
+    if (sheet.getLastRow() > 1) {
+      existingIds = sheet.getRange(2, idColumn, sheet.getLastRow() - 1, 1)
+        .getValues()
+        .flat()
+        .map(id => id.toString().trim()); // Normaliza para texto
+    }
+
+    // Verifica duplicatas
+    if (existingIds.includes(googleId)) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ 
+          status: 'erro', 
+          message: 'Usuário já cadastrado!' 
+        }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // --- Insere novo registro ---
     const nextRow = sheet.getLastRow() + 1;
     
-    // Correção: usar os valores reais do objeto data
-    const novo = {
-      'Nome':     data.name,
-      'E-mail':   data.email,
-      'FotoURL':  data.picture,
+    const novoRegistro = {
+      'Nome': data.name,
+      'E-mail': data.email,
+      'FotoURL': data.picture,
       'Timestamp': new Date(),
-      'GoogleID': data.id
+      'GoogleID': googleId // Mantido como texto
     };
 
-    Object.keys(novo).forEach(campo => {
+    // Preenche as células
+    Object.keys(novoRegistro).forEach(campo => {
       const col = colIndex[campo];
       if (col) {
-        // Correção: remover ponto e vírgula entre métodos encadeados
         sheet.getRange(nextRow, col)
-             .setValue(novo[campo])
+             .setValue(novoRegistro[campo])
              .setBorder(true, true, true, true, true, true, '#000000', SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
-      } else {
-        // Correção: remover 'opcional:' inválido
-        Logger.log(`Coluna "${campo}" não existe!`);
       }
     });
 
     return ContentService
-      .createTextOutput(JSON.stringify({ status: 'success', message: 'Data saved to sheet.' }))
+      .createTextOutput(JSON.stringify({ 
+        status: 'sucesso', 
+        message: 'Usuário cadastrado com sucesso!' 
+      }))
       .setMimeType(ContentService.MimeType.JSON);
 
   } catch (error) {
-    Logger.log(error);
     return ContentService
-      .createTextOutput(JSON.stringify({ status: 'error', message: error.toString() }))
+      .createTextOutput(JSON.stringify({ 
+        status: 'erro', 
+        message: `Falha no cadastro: ${error.message}`
+      }))
       .setMimeType(ContentService.MimeType.JSON);
   }
 }
