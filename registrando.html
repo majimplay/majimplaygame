@@ -40,10 +40,7 @@
             <input type="email" name="email" required>
         </div>
         
-        <div class="form-group">
-            <label>OTAO:</label>
-            <input type="text" name="otao" required>
-        </div>
+      
         
         <button type="submit">Enviar</button>
     </form>
@@ -57,7 +54,7 @@
             formData.forEach((value, key) => dados[key] = value);
             
             // Substitua com seu URL do Google Apps Script
-            const scriptURL = 'SUA_URL_DO_GOOGLE_SCRIPT_AQUI';
+            const scriptURL = 'https://script.google.com/macros/s/AKfycbworSJdoGzAh9k6DZ8FO5qyeyb9gc7ISq8MgaIqmkmQwXeLrCPTbqZBwPA_Kq1-GIhIPw/exec';
             
             fetch(scriptURL, {
                 method: 'POST',
