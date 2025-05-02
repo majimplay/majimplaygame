@@ -1,34 +1,71 @@
-a { color:#5D5D9E; } 
-a:visited { color:#5D5D9E; } 
-a:active { color:#5C615E; } 
-a:hover { color:#B2B3B4; } 
-#button_2fe25639 { box-sizing: border-box; border-radius: 100px 100px 10px 10px; position:absolute; left:17%; top:16%; width:165px; height:194px; background-color:#8000FF; border: 3px solid #404040;  }
-#button_2fe25639:hover { background-color:#FFFF00; border-color:#000000;  }
-#button_2fe25639:hover { color:#400040; }
-body { background-color:#FFFFFF; padding:0;  margin: 0; }
-.textstyle1 { text-align:left; }
-.textstyle2 { font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000;  }
-#container_f645165 { box-sizing: border-box; vertical-align: top; border-radius: 40px; position:relative; display: inline-block; width:100%; min-height:382px; background-color:#00FFFF; border: 5px solid #404040;  }
-#container_f645165_padding { margin: 10px; display: block;  }
-#container_49ec4bae { vertical-align: top; position:relative; display: inline-block; width:100%; min-height:300px; background:none;  }
-#container_49ec4bae_padding { margin: 10px; display: block;  }
-#container_4c46cf44 { vertical-align: top; position:relative; display: inline-block; width:20%; min-height:282px; background:none;  }
-#container_4c46cf44_padding { margin: 10px; display: block;  }
-#edit_5f0116bc { box-sizing: border-box; vertical-align: bottom; position:relative; display: inline-block; width:150px; height:30px; background-color:#FFFFFF; border: 1px solid #A0A0A0; font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000;  }
-#edit_15ec8179 { box-sizing: border-box; vertical-align: bottom; position:relative; display: inline-block; width:150px; height:30px; background-color:#FFFFFF; border: 1px solid #A0A0A0; font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000;  }
-#edit_4915d68c { box-sizing: border-box; vertical-align: bottom; position:relative; display: inline-block; width:150px; height:30px; background-color:#FFFFFF; border: 1px solid #A0A0A0; font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000;  }
-#edit_30ba40bc { box-sizing: border-box; vertical-align: bottom; position:relative; display: inline-block; width:150px; height:30px; background-color:#FFFFFF; border: 1px solid #A0A0A0; font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000;  }
-#container_64f37254 { vertical-align: top; position:relative; display: inline-block; width:18%; min-height:283px; background:none;  }
-#container_64f37254_padding { margin: 10px; display: block;  }
-#edit_65b495a2 { box-sizing: border-box; vertical-align: bottom; position:relative; display: inline-block; width:150px; height:30px; background-color:#FFFFFF; border: 1px solid #A0A0A0; font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000;  }
-#edit_3f14847d { box-sizing: border-box; vertical-align: bottom; position:relative; display: inline-block; width:150px; height:30px; background-color:#FFFFFF; border: 1px solid #A0A0A0; font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000;  }
-#edit_7912be8c { box-sizing: border-box; vertical-align: bottom; position:relative; display: inline-block; width:150px; height:30px; background-color:#FFFFFF; border: 1px solid #A0A0A0; font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000;  }
-#container_6b4db2e2 { vertical-align: top; position:relative; display: inline-block; width:33%; min-height:283px; background:none;  }
-#container_6b4db2e2_padding { margin: 10px; display: block;  }
-#button_2fe25639 { box-sizing: border-box; border-radius: 100px 100px 10px 10px; position:absolute; left:17%; top:16%; width:165px; height:194px; background-color:#8000FF; border: 3px solid #404040; font-size:32pt; font-family:Arial, Helvetica, sans-serif; color:#000000;  }
-@media only screen and (max-width: 600px)
-{
-		#container_4c46cf44 { width:100%;  }
-		#container_64f37254 { width:100%;  }
-		#container_6b4db2e2 { width:100%;  }
+/* Estilos Gerais */
+body { 
+    background-color: #FFFFFF; 
+    margin: 0; 
+    padding: 20px; 
+}
+
+.input-style {
+    box-sizing: border-box;
+    width: 150px;
+    height: 30px;
+    border: 1px solid #A0A0A0;
+    font-size: 12pt;
+    font-family: Arial, Helvetica, sans-serif;
+    margin-bottom: 15px;
+    display: block; 
+}
+
+/* Containers */
+#container_principal {
+    box-sizing: border-box;
+    border-radius: 40px;
+    background-color: #00FFFF;
+    border: 5px solid #404040;
+    padding: 20px;
+    max-width: 800px;
+    margin: 0 auto; 
+}
+
+#container_formulario {
+    display: flex;
+    gap: 30px;
+    justify-content: space-between;
+}
+
+.grupo_campos {
+    flex: 1;
+}
+
+/* Botão de Envio */
+#botao_enviar {
+    box-sizing: border-box;
+    border-radius: 100px 100px 10px 10px;
+    width: 165px;
+    height: 194px;
+    background-color: #8000FF;
+    border: 3px solid #404040;
+    font-size: 32pt;
+    font-family: Arial, Helvetica, sans-serif;
+    color: #000000;
+    cursor: pointer;
+    margin: 20px auto;
+    display: block;
+}
+
+#botao_enviar:hover {
+    background-color: #FFFF00;
+    border-color: #000000;
+    color: #400040;
+}
+
+/* Responsividade */
+@media only screen and (max-width: 600px) {
+    #container_formulario {
+        flex-direction: column;
+    }
+    
+    .grupo_campos {
+        width: 100%;
+    }
 }
