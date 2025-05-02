@@ -1,5 +1,5 @@
 // URL do script do Google Apps para salvar/atualizar dados do cliente
-const CLIENT_SHEET_URL = 'https://script.google.com/macros/s/AKfycbwgmBp5z7GCTRfbHMs_a6SaxsTBzS7b7YNFdSxqjIvlIEROeoWzHVcgB6jRCa1Rcmax/exec'; // Verifique se esta é a URL correta para o cliente.gs
+const CLIENT_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxF30STg18Sv29ezFA3v5vgvmvHcoxJEc_tq36Yht_kGmxP4FgKm7ZJE3ET9rRsJSH9/exec'; // Verifique se esta é a URL correta para o cliente.gs
 
 // Chave usada para armazenar o token JWT no localStorage (deve ser a mesma usada em script.js)
 const USER_DATA_KEY = 'googleUserData';
