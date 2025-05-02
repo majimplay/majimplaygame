@@ -1,11 +1,9 @@
+const CLIENT_SHEET_URL = 'https://script.google.com/macros/s/AKfycbwgmBp5z7GCTRfbHMs_a6SaxsTBzS7b7YNFdSxqjIvlIEROeoWzHVcgB6jRCa1Rcmax/exec';
 
-// Adicione esta nova constante para a URL da planilha de clientes
-    const CLIENT_SHEET_URL = 'https://script.google.com/macros/s/AKfycbwgmBp5z7GCTRfbHMs_a6SaxsTBzS7b7YNFdSxqjIvlIEROeoWzHVcgB6jRCa1Rcmax/exec';
-
-// Adicione esta função para enviar dados do cliente
+// Função para enviar dados para a planilha
 function saveClientToSheet(clientData) {
     if (!CLIENT_SHEET_URL) {
-        console.error('URL da planilha de clientes não configurada');
+        console.error('URL da planilha não configurada');
         return;
     }
 
@@ -16,34 +14,27 @@ function saveClientToSheet(clientData) {
         body: JSON.stringify(clientData)
     })
     .then(() => {
-        console.log('Dados do cliente enviados');
-        document.getElementById('statusMessage').textContent = 'Dados salvos com sucesso!';
+        console.log('Dados enviados com sucesso');
+        document.getElementById('statusMessage').textContent = 'Dados salvos!';
     })
     .catch(error => {
-        console.error('Erro ao enviar dados do cliente:', error);
-        document.getElementById('statusMessage').textContent = 'Erro ao salvar dados!';
+        console.error('Erro:', error);
+        document.getElementById('statusMessage').textContent = 'Erro ao salvar!';
     });
 }
 
-// Adicione este listener para o iframe de perfil
-	
+// Evento de clique no botão "Enviar"
+document.getElementById('botao_enviar').addEventListener('click', () => {
+    const client = {
+        cpf: document.getElementById('input_cpf').value,
+        tel: document.getElementById('input_telefone').value,
+        cep: document.getElementById('input_cep').value,
+        logradouro: document.getElementById('input_logradouro').value,
+        cidade: document.getElementById('input_cidade').value,
+        bairro: document.getElementById('input_bairro').value,
+        estado: document.getElementById('input_estado').value
+    };
 
-
-document.getElementById('button_2fe25639').addEventListener('click', () => {
-    // Coleta os valores dos campos de entrada
-   const client = {
-    cliente: document.getElementById('edit_5f0116bc').value, 
-    cpf: document.getElementById('edit_15ec8179').value,
-    tel: document.getElementById('edit_4915d68c').value, 
-    cep: document.getElementById('edit_30ba40bc').value,
-    logradouro: document.getElementById('edit_65b495a2').value,
-    cidade: document.getElementById('edit_3f14847d').value,
-  //  estado: document.getElementById('edit_3f14847d').value, // Supondo que haja um campo para "Estado"
-    bairro: document.getElementById('edit_7912be8c').value
-};
-    // Envia os dados para a planilha
     saveClientToSheet(client);
-    console.log('Dados do cliente enviados:', client);
+    console.log('Dados coletados:', client);
 });
-	
-</script>
