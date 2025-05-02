@@ -1,216 +1,375 @@
 /**
  * ID da sua planilha Google.
- * Encontre na URL: https://docs.google.com/spreadsheets/d/ID_DA_PLANILHA/edit
  */
 const SPREADSHEET_ID = '1EYUPZjfdnPJz9tI9yJFN1cVoiy9Fs3HABqFZFaz4r2A'; // Substitua pelo seu ID
 
 /**
- * Nome da página (aba) onde os dados serão salvos.
+ * Nome da página (aba) onde os dados serão salvos/lidos.
  */
 const SHEET_NAME = 'dado'; // <-- VERIFIQUE E AJUSTE SE NECESSÁRIO
 
 /**
+ * Nome da coluna que armazena o ID único do Google do usuário.
+ * ESSENCIAL para buscar e atualizar dados corretamente.
+ * CERTIFIQUE-SE QUE ESTA COLUNA EXISTE NA SUA PLANILHA.
+ */
+const GOOGLE_ID_COLUMN_NAME = 'Google ID'; // <-- Nome correto da coluna (Case Sensitive)
+
+/**
  * Mapeamento dos campos recebidos no JSON para os nomes das colunas na planilha.
- * Chave: Nome do campo no JSON que você envia (ex: 'nome', 'email').
- * Valor: Nome EXATO da coluna na primeira linha (cabeçalho) da sua planilha (ex: 'Nome do Cliente', 'Email de Contato').
- *
- * Exemplo de configuração:
- * const FIELD_TO_COLUMN_MAP = {
- * 'nome': 'Nome Completo', // O campo 'nome' do JSON vai para a coluna 'Nome Completo'
- * 'email': 'Endereço de Email', // O campo 'email' do JSON vai para a coluna 'Endereço de Email'
- * 'telefone': 'Telefone',
- * // Adicione mais mapeamentos conforme necessário
- * };
- *
- * Certifique-se de que os nomes das colunas aqui CORRESPONDAM EXATAMENTE aos cabeçalhos na sua planilha.
+ * Inclui o mapeamento para o ID do Google.
  */
 const FIELD_TO_COLUMN_MAP = {
-  //'nome': 'Nome' // <-- AJUSTE AQUI: 'nome' é o campo no JSON, 'Nome' é o cabeçalho da coluna na planilha
-  'cliente': 'seu nick nome',
-  'cpf': 'cpf',
-  'tel': 'tel',
-  'cep': 'cep',
-  'logradouro': 'logradouro',
-  'cidade': 'cidade',
-  'bairro': 'bairro'
+  // Chave (JSON enviado) : Valor (Nome EXATO da coluna na planilha)
+  'cpf' : 'cpf',
+  'tel' : 'tel',
+  'cep' : 'cep',
+  'logradouro' : 'logradouro',
+  'cidade' : 'cidade',
+  'bairro' : 'bairro',
+  'estado' : 'estado',
+  'googleUserId' : GOOGLE_ID_COLUMN_NAME // <-- CORRIGIDO: Usar a constante para garantir consistência
+  // Adicione ou remova campos conforme sua planilha e formulário
 };
 
 /**
- * Nome da coluna onde o timestamp (data e hora do registro) será salvo.
- * Se não quiser um timestamp, deixe como null ou string vazia ('').
+ * Nome da coluna para timestamp (opcional). Deixe '' ou null para desativar.
  */
-const TIMESTAMP_COLUMN_NAME = 'null'; // <-- AJUSTE se quiser um nome diferente ou desabilitar
+const TIMESTAMP_COLUMN_NAME = 'Timestamp'; // <-- AJUSTE se quiser timestamp
 
-/**
- * Função principal executada ao receber uma requisição POST.
- * @param {Object} e - Objeto de evento do Apps Script contendo os dados da requisição.
- */
+// ========================================================================
+// FUNÇÃO doGet: Usada para buscar dados de um cliente pelo Google ID
+// ========================================================================
+function doGet(e) {
+  let responsePayload = {}; // Objeto para a resposta JSON
+  let ss, sheet, headers, data, googleIdToSearch;
+
+  try {
+    // 1. Valida se o parâmetro 'googleUserId' foi passado na URL
+    if (!e || !e.parameter || !e.parameter.googleUserId) {
+      throw new Error("Parâmetro 'googleUserId' não fornecido na requisição GET.");
+    }
+    googleIdToSearch = e.parameter.googleUserId;
+    Logger.log(`Buscando dados para Google ID: ${googleIdToSearch}`);
+
+    // 2. Acessa a planilha e a aba
+    ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    sheet = ss.getSheetByName(SHEET_NAME);
+    if (!sheet) {
+      throw new Error(`Aba "${SHEET_NAME}" não encontrada.`);
+    }
+
+    // 3. Lê os cabeçalhos e todos os dados da planilha
+    data = sheet.getDataRange().getValues();
+    // Verifica se há pelo menos a linha de cabeçalho E uma linha de dados
+    if (data.length < 2) {
+        // Se chegou aqui, a planilha está vazia ou só tem cabeçalho. Retorna 'not_found'.
+        Logger.log(`Planilha "${SHEET_NAME}" vazia ou sem dados (apenas cabeçalho).`);
+         responsePayload = {
+            status: 'not_found', // Indica que não achou dados, não necessariamente um erro
+            message: 'Nenhum registro encontrado para este Google ID (planilha vazia ou sem dados).',
+            googleUserId: googleIdToSearch
+        };
+         // Retorna imediatamente neste caso, não é um erro fatal para doGet
+         return ContentService.createTextOutput(JSON.stringify(responsePayload))
+                .setMimeType(ContentService.MimeType.JSON);
+    }
+    headers = data[0].map(header => String(header).trim()); // Cabeçalhos
+
+    // 4. Encontra o índice da coluna do Google ID
+    const googleIdColumnIndex = headers.indexOf(GOOGLE_ID_COLUMN_NAME);
+    if (googleIdColumnIndex === -1) {
+      throw new Error(`Coluna "${GOOGLE_ID_COLUMN_NAME}" não encontrada nos cabeçalhos: [${headers.join(', ')}]`);
+    }
+
+    // 5. Procura pela linha que corresponde ao Google ID
+    let foundRowData = null;
+    let foundRowIndex = -1; // Para log
+    // Começa do índice 1 para pular o cabeçalho
+    for (let i = 1; i < data.length; i++) {
+      // Compara o valor na coluna do Google ID com o ID buscado
+      if (String(data[i][googleIdColumnIndex]).trim() === String(googleIdToSearch).trim()) {
+        foundRowData = data[i]; // Armazena a linha inteira encontrada
+        foundRowIndex = i; // Armazena o índice no array de dados (base 0)
+        Logger.log(`Linha encontrada no índice ${foundRowIndex} (linha ${foundRowIndex+1} da planilha) para o Google ID ${googleIdToSearch}.`);
+        break; // Para a busca assim que encontrar a primeira correspondência
+      }
+    }
+
+    // 6. Prepara a resposta
+    if (foundRowData) {
+      // Se encontrou a linha, mapeia os dados de volta para um objeto JSON
+      const clientData = {};
+      // Itera sobre o mapeamento FIELD_TO_COLUMN_MAP
+      for (const fieldName in FIELD_TO_COLUMN_MAP) {
+        // Não precisamos retornar o googleUserId dentro de clientData, já o temos
+        if (fieldName === 'googleUserId') continue;
+
+        const columnName = FIELD_TO_COLUMN_MAP[fieldName];
+        const columnIndex = headers.indexOf(columnName);
+        // Se a coluna mapeada existe
+        if (columnIndex !== -1) {
+          // Pega o valor da célula correspondente na linha encontrada
+          clientData[fieldName] = foundRowData[columnIndex];
+        } else {
+            Logger.log(`Aviso (doGet): Coluna "${columnName}" mapeada para "${fieldName}" não encontrada nos cabeçalhos ao buscar dados.`);
+        }
+      }
+      // Monta a resposta de sucesso com os dados do cliente
+      responsePayload = {
+        status: 'success',
+        message: 'Dados do cliente encontrados.',
+        googleUserId: googleIdToSearch, // Inclui o ID que foi buscado
+        clientData: clientData // O objeto com os dados mapeados
+      };
+      Logger.log(`Dados encontrados e mapeados: ${JSON.stringify(clientData)}`);
+    } else {
+      // Se não encontrou nenhuma linha correspondente (e a planilha não estava vazia)
+      responsePayload = {
+        status: 'not_found',
+        message: 'Nenhum registro encontrado para este Google ID.',
+        googleUserId: googleIdToSearch
+      };
+      Logger.log(`Nenhum registro encontrado para Google ID: ${googleIdToSearch}`);
+    }
+
+  } catch (error) {
+    // 7. Tratamento de erros durante a busca
+    Logger.log(`Erro em doGet: ${error.message}\nParâmetros recebidos: ${JSON.stringify(e.parameter)}\nStack: ${error.stack}`);
+    responsePayload = {
+      status: 'error',
+      message: `Erro ao buscar dados: ${error.message}`,
+      // Incluir detalhes do erro pode ser útil para depuração, mas cuidado com informações sensíveis
+      // errorDetails: error.toString()
+    };
+  } finally {
+    // 8. Retorna a resposta sempre em formato JSON
+    return ContentService.createTextOutput(JSON.stringify(responsePayload))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+
+// ========================================================================
+// FUNÇÃO doPost: Usada para salvar ou atualizar dados do cliente
+// ========================================================================
 function doPost(e) {
   let ss, sheet, headers, response;
 
   try {
-    // Validação básica da requisição
+    // 1. Validação básica da requisição POST
     if (!e || !e.postData || !e.postData.contents) {
-      throw new Error("Requisição inválida ou sem dados.");
+      throw new Error("Requisição POST inválida ou sem dados.");
     }
 
-    // 1. Acessar a Planilha e a Aba
+    // 2. Analisar os Dados JSON Recebidos
+    let receivedData;
+    try {
+      receivedData = JSON.parse(e.postData.contents);
+    } catch (parseError) {
+      throw new Error(`Erro ao analisar JSON: ${parseError.message}. Conteúdo: ${e.postData.contents}`);
+    }
+    Logger.log(`Dados JSON recebidos em doPost: ${JSON.stringify(receivedData)}`);
+
+
+    // 3. Valida se o googleUserId foi recebido (essencial)
+    if (!receivedData.googleUserId) {
+      throw new Error("O campo 'googleUserId' é obrigatório no JSON enviado.");
+    }
+    const googleUserId = String(receivedData.googleUserId).trim();
+    Logger.log(`Recebido POST para Google ID: ${googleUserId}`);
+
+    // 4. Acessar a Planilha e a Aba
     ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     sheet = ss.getSheetByName(SHEET_NAME);
     if (!sheet) {
-      throw new Error(`Aba "${SHEET_NAME}" não encontrada na planilha ID: ${SPREADSHEET_ID}.`);
+      throw new Error(`Aba "${SHEET_NAME}" não encontrada.`);
     }
 
-    // 2. Ler os Cabeçalhos (primeira linha da planilha)
+    // 5. Ler os Cabeçalhos (primeira linha)
     const headerRange = sheet.getRange(1, 1, 1, sheet.getLastColumn());
-    headers = headerRange.getValues()[0].map(header => String(header).trim()); // Garante que são strings e sem espaços extras
-
+    headers = headerRange.getValues()[0].map(header => String(header).trim());
+    Logger.log(`Cabeçalhos lidos da planilha: [${headers.join(', ')}]`);
     if (headers.length === 0 || headers.every(h => h === '')) {
-        throw new Error(`A aba "${SHEET_NAME}" parece não ter cabeçalhos na primeira linha.`);
+        throw new Error(`A aba "${SHEET_NAME}" parece não ter cabeçalhos válidos.`);
     }
 
-    // 3. Analisar os Dados JSON Recebidos
-    let data;
-    try {
-        data = JSON.parse(e.postData.contents);
-    } catch (parseError) {
-        throw new Error(`Erro ao analisar JSON: ${parseError.message}. Conteúdo recebido: ${e.postData.contents}`);
+    // 6. Encontra o índice da coluna do Google ID (usando a constante correta)
+    const googleIdColumnIndex = headers.indexOf(GOOGLE_ID_COLUMN_NAME);
+    if (googleIdColumnIndex === -1) {
+      throw new Error(`Coluna de identificação "${GOOGLE_ID_COLUMN_NAME}" não encontrada nos cabeçalhos. Verifique o nome exato na planilha.`);
+    }
+     Logger.log(`Coluna "${GOOGLE_ID_COLUMN_NAME}" encontrada no índice: ${googleIdColumnIndex}`);
+
+
+    // 7. Procurar se já existe um registro para este Google ID
+    const data = sheet.getDataRange().getValues();
+    let existingRowIndex = -1; // Índice da linha na planilha (base 1)
+    // Começa da linha 2 (índice 1 no array 'data') para pular cabeçalho
+    for (let i = 1; i < data.length; i++) {
+      // Compara o valor na coluna do Google ID (índice correto) com o ID recebido
+      if (String(data[i][googleIdColumnIndex]).trim() === googleUserId) {
+        existingRowIndex = i + 1; // Índice da linha na planilha é i + 1
+        Logger.log(`Registro existente encontrado na linha ${existingRowIndex} para Google ID ${googleUserId}. Atualizando.`);
+        break;
+      }
     }
 
-    // 4. Preparar a Linha de Dados para Inserção
-    const newRow = Array(headers.length).fill(''); // Cria um array com o tamanho dos cabeçalhos, preenchido com vazio
+    // 8. Preparar a Linha de Dados (seja nova ou para atualização)
+    const rowData = Array(headers.length).fill(''); // Cria array do tamanho dos cabeçalhos
     const timestamp = new Date();
-    let dataFound = false; // Flag para verificar se algum dado foi mapeado
+    let dataMapped = false;
 
-    // Mapeia os dados recebidos para as colunas corretas
+    // Mapeia os dados recebidos para as posições corretas no array rowData
     for (const fieldName in FIELD_TO_COLUMN_MAP) {
-      if (data.hasOwnProperty(fieldName)) {
-        const columnName = FIELD_TO_COLUMN_MAP[fieldName];
-        const columnIndex = headers.indexOf(columnName);
+        // Verifica se o dado foi realmente enviado no JSON
+      if (receivedData.hasOwnProperty(fieldName)) {
+        const columnName = FIELD_TO_COLUMN_MAP[fieldName]; // Pega o nome da coluna do mapa
+        const columnIndex = headers.indexOf(columnName); // Encontra o índice dessa coluna nos cabeçalhos lidos
 
+        // Se a coluna existe na planilha
         if (columnIndex !== -1) {
-          newRow[columnIndex] = data[fieldName]; // Coloca o dado na posição correta do array
-          dataFound = true;
+          rowData[columnIndex] = receivedData[fieldName]; // Coloca o dado na posição correta do array
+          Logger.log(`Mapeado: Campo JSON "${fieldName}" -> Coluna "${columnName}" (Índice ${columnIndex}) = Valor "${receivedData[fieldName]}"`);
+          // Marca que mapeou dados, mesmo que seja só o ID
+          if (fieldName === 'googleUserId' || (receivedData[fieldName] !== null && receivedData[fieldName] !== '')) {
+             dataMapped = true;
+          }
         } else {
-          // Loga um aviso se uma coluna mapeada não for encontrada no cabeçalho
-          Logger.log(`Aviso: A coluna "${columnName}" (mapeada para o campo "${fieldName}") não foi encontrada nos cabeçalhos da planilha: [${headers.join(', ')}]`);
+          // Loga um aviso se uma coluna definida no mapa não foi encontrada na planilha
+          Logger.log(`Aviso (doPost): Coluna "${columnName}" (mapeada do campo JSON "${fieldName}") não encontrada nos cabeçalhos da planilha. O dado não será salvo nesta coluna.`);
         }
       }
     }
 
-    // Adiciona o Timestamp se configurado e a coluna existir
+    // Adiciona Timestamp se configurado e coluna existir
     if (TIMESTAMP_COLUMN_NAME) {
-        const timestampColumnIndex = headers.indexOf(TIMESTAMP_COLUMN_NAME);
-        if (timestampColumnIndex !== -1) {
-            newRow[timestampColumnIndex] = timestamp;
-        } else {
-            Logger.log(`Aviso: A coluna de timestamp "${TIMESTAMP_COLUMN_NAME}" não foi encontrada nos cabeçalhos.`);
-            // Opcional: Poderia adicionar o timestamp na primeira coluna vazia ou lançar erro
-        }
+      const timestampColumnIndex = headers.indexOf(TIMESTAMP_COLUMN_NAME);
+      if (timestampColumnIndex !== -1) {
+        rowData[timestampColumnIndex] = timestamp;
+         Logger.log(`Timestamp adicionado na coluna "${TIMESTAMP_COLUMN_NAME}" (Índice ${timestampColumnIndex})`);
+      } else {
+        Logger.log(`Aviso: Coluna de timestamp "${TIMESTAMP_COLUMN_NAME}" não encontrada nos cabeçalhos. Timestamp não será salvo.`);
+      }
     }
 
-    // Verifica se algum dado útil foi encontrado para adicionar
-    if (!dataFound && !(TIMESTAMP_COLUMN_NAME && headers.includes(TIMESTAMP_COLUMN_NAME))) {
-        throw new Error("Nenhum dos campos recebidos corresponde aos campos mapeados ou a coluna de timestamp não está configurada/encontrada.");
+    // Verifica se algum dado útil foi mapeado
+    if (!dataMapped) {
+      // Isso pode acontecer se o JSON enviado só tiver campos que não estão no FIELD_TO_COLUMN_MAP
+      // ou se as colunas correspondentes não existirem na planilha.
+      Logger.log("Nenhum campo de dados recebido correspondeu a colunas existentes na planilha (verifique JSON enviado, FIELD_TO_COLUMN_MAP e nomes das colunas). Nenhuma operação de escrita realizada.");
+      // Considerar se isso deve ser um erro ou apenas um log. Por segurança, vamos retornar um erro.
+      throw new Error("Nenhum dado útil para salvar foi mapeado para as colunas da planilha.");
     }
 
-    // 5. Adicionar a Nova Linha na Planilha
-    sheet.appendRow(newRow);
+     Logger.log(`Array de dados preparado para escrita: [${rowData.join(', ')}]`);
 
-    // 6. Preparar Resposta de Sucesso
-    response = {
-      status: 'success',
-      message: 'Dados adicionados com sucesso.',
-      receivedData: data, // Inclui os dados recebidos para depuração (opcional)
-      addedRow: newRow // Inclui a linha como foi adicionada (opcional)
-    };
+    // 9. Salvar na Planilha: Atualizar ou Adicionar Nova Linha
+    if (existingRowIndex !== -1) {
+      // Atualiza a linha existente
+      // Cria o range da linha a ser atualizada (linha, coluna inicial, num linhas, num colunas)
+      const rangeToUpdate = sheet.getRange(existingRowIndex, 1, 1, headers.length);
+      Logger.log(`Atualizando range: ${rangeToUpdate.getA1Notation()}`);
+      rangeToUpdate.setValues([rowData]); // setValues espera um array 2D [[...]]
+      response = {
+        status: 'success',
+        message: 'Dados atualizados com sucesso.',
+        operation: 'update',
+        rowIndex: existingRowIndex,
+        googleUserId: googleUserId
+      };
+      Logger.log(`Dados atualizados na linha ${existingRowIndex}.`);
+    } else {
+      // Adiciona uma nova linha
+       Logger.log(`Adicionando nova linha com os dados.`);
+      sheet.appendRow(rowData);
+      const newRowIndex = sheet.getLastRow(); // Pega o índice da linha recém-adicionada
+      response = {
+        status: 'success',
+        message: 'Novo registro adicionado com sucesso.',
+        operation: 'append',
+        rowIndex: newRowIndex,
+        googleUserId: googleUserId
+      };
+      Logger.log(`Novo registro adicionado na linha ${newRowIndex}.`);
+    }
 
   } catch (error) {
-    // 7. Lidar com Erros
-    Logger.log(`Erro em doPost: ${error.message}\nStack: ${error.stack}`);
-    // Loga detalhes adicionais se disponíveis
-    if(e && e.postData) Logger.log(`Dados recebidos no erro: ${e.postData.contents}`);
-    if(headers) Logger.log(`Cabeçalhos lidos no erro: [${headers.join(', ')}]`);
+    // 10. Lidar com Erros no POST
+    Logger.log(`!!! Erro em doPost: ${error.message}\nStack: ${error.stack}`);
+    // Logar dados recebidos pode ajudar a depurar
+    if(e && e.postData) Logger.log(`Dados recebidos no erro POST: ${e.postData.contents}`);
+    // Logar cabeçalhos lidos também pode ajudar
+    if(headers) Logger.log(`Cabeçalhos lidos no erro POST: [${headers.join(', ')}]`);
 
     response = {
       status: 'error',
-      message: error.message
+      message: `Erro ao processar dados: ${error.message}`
+      // Considerar adicionar mais detalhes do erro se não for informação sensível
+      // errorDetails: error.toString()
     };
 
   } finally {
-    // 8. Retornar a Resposta (JSON)
-    // Sempre retorna uma resposta, seja de sucesso ou erro.
+    // 11. Retornar a Resposta JSON (para POST)
+    // Mesmo com 'no-cors' no fetch, o Apps Script envia uma resposta.
+    // O cliente não poderá lê-la, mas é útil para logs e depuração no Apps Script.
+    Logger.log(`Resposta final do doPost: ${JSON.stringify(response)}`);
     return ContentService.createTextOutput(JSON.stringify(response))
       .setMimeType(ContentService.MimeType.JSON);
   }
 }
 
-// --- FUNÇÕES AUXILIARES E DE TESTE (Opcional) ---
+// --- FUNÇÕES DE TESTE (Opcional, mas recomendado) ---
 
 /**
- * Função de teste para verificar a configuração e adição de dados.
- * Execute esta função manualmente no editor do Apps Script.
+ * Testa a busca de dados via doGet simulando um parâmetro.
+ * IMPORTANTE: Substitua 'ID_DO_GOOGLE_PARA_TESTAR' por um ID que EXISTA na sua planilha.
  */
-function testAppendData() {
-  try {
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    const sheet = ss.getSheetByName(SHEET_NAME);
-    if (!sheet) {
-      Logger.log(`Erro no teste: Aba "${SHEET_NAME}" não encontrada.`);
-      return;
-    }
-
-    // Simula dados recebidos
-    const testData = {
-      'nome': 'Teste Automatizado ' + new Date().toLocaleTimeString(),
-      // Adicione outros campos de teste se você mapeou mais coisas
-      // 'email': 'teste@exemplo.com',
-      // 'cidade': 'Cidade Teste'
-    };
-
-    const headerRange = sheet.getRange(1, 1, 1, sheet.getLastColumn());
-    const headers = headerRange.getValues()[0].map(header => String(header).trim());
-
-    if (headers.length === 0 || headers.every(h => h === '')) {
-        Logger.log(`Erro no teste: A aba "${SHEET_NAME}" parece não ter cabeçalhos.`);
-        return;
-    }
-
-    const newRow = Array(headers.length).fill('');
-    const timestamp = new Date();
-    let dataFound = false;
-
-    for (const fieldName in FIELD_TO_COLUMN_MAP) {
-      if (testData.hasOwnProperty(fieldName)) {
-        const columnName = FIELD_TO_COLUMN_MAP[fieldName];
-        const columnIndex = headers.indexOf(columnName);
-        if (columnIndex !== -1) {
-          newRow[columnIndex] = testData[fieldName];
-          dataFound = true;
-        } else {
-           Logger.log(`Aviso no teste: Coluna "${columnName}" não encontrada.`);
-        }
-      }
-    }
-
-     if (TIMESTAMP_COLUMN_NAME) {
-        const timestampColumnIndex = headers.indexOf(TIMESTAMP_COLUMN_NAME);
-        if (timestampColumnIndex !== -1) {
-            newRow[timestampColumnIndex] = timestamp;
-        } else {
-             Logger.log(`Aviso no teste: Coluna de timestamp "${TIMESTAMP_COLUMN_NAME}" não encontrada.`);
-        }
-    }
-
-    if (!dataFound && !(TIMESTAMP_COLUMN_NAME && headers.includes(TIMESTAMP_COLUMN_NAME))) {
-       Logger.log("Erro no teste: Nenhum dado de teste foi mapeado para colunas existentes.");
-       return;
-    }
-
-    sheet.appendRow(newRow);
-    Logger.log(`Linha de teste adicionada com sucesso: [${newRow.join(', ')}]`);
-
-  } catch (error) {
-    Logger.log(`Erro durante o teste: ${error.message}\nStack: ${error.stack}`);
+function testDoGet() {
+  const mockEvent = {
+    parameter: { googleUserId: 'ID_DO_GOOGLE_PARA_TESTAR' }, // <-- SUBSTITUA AQUI
+    parameters: { googleUserId: ['ID_DO_GOOGLE_PARA_TESTAR'] } // <-- SUBSTITUA AQUI
+  };
+  if (mockEvent.parameter.googleUserId === 'ID_DO_GOOGLE_PARA_TESTAR') {
+     Logger.log("ATENÇÃO (testDoGet): Substitua 'ID_DO_GOOGLE_PARA_TESTAR' por um ID real da sua planilha para testar a busca.");
+     return;
   }
+  Logger.log("--- Iniciando teste doGet ---");
+  const result = doGet(mockEvent);
+  Logger.log(`Resultado do teste doGet:\n${result.getContent()}`);
+  Logger.log("--- Fim do teste doGet ---");
+}
+
+/**
+ * Testa a adição/atualização de dados via doPost simulando dados recebidos.
+ * IMPORTANTE: Substitua 'ID_DO_GOOGLE_PARA_TESTAR_OU_NOVO' por um ID para teste.
+ * Se o ID já existir, ele tentará atualizar. Se não existir, tentará adicionar.
+ */
+function testDoPost() {
+   const testGoogleId = 'ID_DO_GOOGLE_PARA_TESTAR_OU_NOVO'; // <-- SUBSTITUA AQUI
+    if (testGoogleId === 'ID_DO_GOOGLE_PARA_TESTAR_OU_NOVO') {
+     Logger.log("ATENÇÃO (testDoPost): Substitua 'ID_DO_GOOGLE_PARA_TESTAR_OU_NOVO' por um ID real ou novo para testar o salvamento.");
+     return;
+   }
+
+   const mockPostData = {
+     postData: {
+       contents: JSON.stringify({
+         // Inclua todos os campos que você espera receber do perfil.js
+         googleUserId: testGoogleId,
+         cpf: '999.999.999-99',
+         tel: '(99) 99999-9999',
+         cep: '99999-999',
+         logradouro: 'Rua Teste doPost ' + new Date().getSeconds(), // Adiciona segundos para diferenciar testes
+         cidade: 'Teste City',
+         bairro: 'Teste Neigh',
+         estado: 'TS'
+         // Certifique-se que as chaves aqui (cpf, tel, etc.) são as mesmas enviadas pelo perfil.js
+       })
+     }
+   };
+  Logger.log("--- Iniciando teste doPost ---");
+  const result = doPost(mockPostData);
+  Logger.log(`Resultado do teste doPost:\n${result.getContent()}`);
+  Logger.log("--- Fim do teste doPost ---");
 }
