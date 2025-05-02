@@ -1,0 +1,216 @@
+/**
+ * ID da sua planilha Google.
+ * Encontre na URL: https://docs.google.com/spreadsheets/d/ID_DA_PLANILHA/edit
+ */
+const SPREADSHEET_ID = '1EYUPZjfdnPJz9tI9yJFN1cVoiy9Fs3HABqFZFaz4r2A'; // Substitua pelo seu ID
+
+/**
+ * Nome da página (aba) onde os dados serão salvos.
+ */
+const SHEET_NAME = 'dado'; // <-- VERIFIQUE E AJUSTE SE NECESSÁRIO
+
+/**
+ * Mapeamento dos campos recebidos no JSON para os nomes das colunas na planilha.
+ * Chave: Nome do campo no JSON que você envia (ex: 'nome', 'email').
+ * Valor: Nome EXATO da coluna na primeira linha (cabeçalho) da sua planilha (ex: 'Nome do Cliente', 'Email de Contato').
+ *
+ * Exemplo de configuração:
+ * const FIELD_TO_COLUMN_MAP = {
+ * 'nome': 'Nome Completo', // O campo 'nome' do JSON vai para a coluna 'Nome Completo'
+ * 'email': 'Endereço de Email', // O campo 'email' do JSON vai para a coluna 'Endereço de Email'
+ * 'telefone': 'Telefone',
+ * // Adicione mais mapeamentos conforme necessário
+ * };
+ *
+ * Certifique-se de que os nomes das colunas aqui CORRESPONDAM EXATAMENTE aos cabeçalhos na sua planilha.
+ */
+const FIELD_TO_COLUMN_MAP = {
+  //'nome': 'Nome' // <-- AJUSTE AQUI: 'nome' é o campo no JSON, 'Nome' é o cabeçalho da coluna na planilha
+  'cliente': 'seu nick nome',
+  'cpf': 'cpf',
+  'tel': 'tel',
+  'cep': 'cep',
+  'logradouro': 'logradouro',
+  'cidade': 'cidade',
+  'bairro': 'bairro'
+};
+
+/**
+ * Nome da coluna onde o timestamp (data e hora do registro) será salvo.
+ * Se não quiser um timestamp, deixe como null ou string vazia ('').
+ */
+const TIMESTAMP_COLUMN_NAME = 'null'; // <-- AJUSTE se quiser um nome diferente ou desabilitar
+
+/**
+ * Função principal executada ao receber uma requisição POST.
+ * @param {Object} e - Objeto de evento do Apps Script contendo os dados da requisição.
+ */
+function doPost(e) {
+  let ss, sheet, headers, response;
+
+  try {
+    // Validação básica da requisição
+    if (!e || !e.postData || !e.postData.contents) {
+      throw new Error("Requisição inválida ou sem dados.");
+    }
+
+    // 1. Acessar a Planilha e a Aba
+    ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    sheet = ss.getSheetByName(SHEET_NAME);
+    if (!sheet) {
+      throw new Error(`Aba "${SHEET_NAME}" não encontrada na planilha ID: ${SPREADSHEET_ID}.`);
+    }
+
+    // 2. Ler os Cabeçalhos (primeira linha da planilha)
+    const headerRange = sheet.getRange(1, 1, 1, sheet.getLastColumn());
+    headers = headerRange.getValues()[0].map(header => String(header).trim()); // Garante que são strings e sem espaços extras
+
+    if (headers.length === 0 || headers.every(h => h === '')) {
+        throw new Error(`A aba "${SHEET_NAME}" parece não ter cabeçalhos na primeira linha.`);
+    }
+
+    // 3. Analisar os Dados JSON Recebidos
+    let data;
+    try {
+        data = JSON.parse(e.postData.contents);
+    } catch (parseError) {
+        throw new Error(`Erro ao analisar JSON: ${parseError.message}. Conteúdo recebido: ${e.postData.contents}`);
+    }
+
+    // 4. Preparar a Linha de Dados para Inserção
+    const newRow = Array(headers.length).fill(''); // Cria um array com o tamanho dos cabeçalhos, preenchido com vazio
+    const timestamp = new Date();
+    let dataFound = false; // Flag para verificar se algum dado foi mapeado
+
+    // Mapeia os dados recebidos para as colunas corretas
+    for (const fieldName in FIELD_TO_COLUMN_MAP) {
+      if (data.hasOwnProperty(fieldName)) {
+        const columnName = FIELD_TO_COLUMN_MAP[fieldName];
+        const columnIndex = headers.indexOf(columnName);
+
+        if (columnIndex !== -1) {
+          newRow[columnIndex] = data[fieldName]; // Coloca o dado na posição correta do array
+          dataFound = true;
+        } else {
+          // Loga um aviso se uma coluna mapeada não for encontrada no cabeçalho
+          Logger.log(`Aviso: A coluna "${columnName}" (mapeada para o campo "${fieldName}") não foi encontrada nos cabeçalhos da planilha: [${headers.join(', ')}]`);
+        }
+      }
+    }
+
+    // Adiciona o Timestamp se configurado e a coluna existir
+    if (TIMESTAMP_COLUMN_NAME) {
+        const timestampColumnIndex = headers.indexOf(TIMESTAMP_COLUMN_NAME);
+        if (timestampColumnIndex !== -1) {
+            newRow[timestampColumnIndex] = timestamp;
+        } else {
+            Logger.log(`Aviso: A coluna de timestamp "${TIMESTAMP_COLUMN_NAME}" não foi encontrada nos cabeçalhos.`);
+            // Opcional: Poderia adicionar o timestamp na primeira coluna vazia ou lançar erro
+        }
+    }
+
+    // Verifica se algum dado útil foi encontrado para adicionar
+    if (!dataFound && !(TIMESTAMP_COLUMN_NAME && headers.includes(TIMESTAMP_COLUMN_NAME))) {
+        throw new Error("Nenhum dos campos recebidos corresponde aos campos mapeados ou a coluna de timestamp não está configurada/encontrada.");
+    }
+
+    // 5. Adicionar a Nova Linha na Planilha
+    sheet.appendRow(newRow);
+
+    // 6. Preparar Resposta de Sucesso
+    response = {
+      status: 'success',
+      message: 'Dados adicionados com sucesso.',
+      receivedData: data, // Inclui os dados recebidos para depuração (opcional)
+      addedRow: newRow // Inclui a linha como foi adicionada (opcional)
+    };
+
+  } catch (error) {
+    // 7. Lidar com Erros
+    Logger.log(`Erro em doPost: ${error.message}\nStack: ${error.stack}`);
+    // Loga detalhes adicionais se disponíveis
+    if(e && e.postData) Logger.log(`Dados recebidos no erro: ${e.postData.contents}`);
+    if(headers) Logger.log(`Cabeçalhos lidos no erro: [${headers.join(', ')}]`);
+
+    response = {
+      status: 'error',
+      message: error.message
+    };
+
+  } finally {
+    // 8. Retornar a Resposta (JSON)
+    // Sempre retorna uma resposta, seja de sucesso ou erro.
+    return ContentService.createTextOutput(JSON.stringify(response))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+// --- FUNÇÕES AUXILIARES E DE TESTE (Opcional) ---
+
+/**
+ * Função de teste para verificar a configuração e adição de dados.
+ * Execute esta função manualmente no editor do Apps Script.
+ */
+function testAppendData() {
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const sheet = ss.getSheetByName(SHEET_NAME);
+    if (!sheet) {
+      Logger.log(`Erro no teste: Aba "${SHEET_NAME}" não encontrada.`);
+      return;
+    }
+
+    // Simula dados recebidos
+    const testData = {
+      'nome': 'Teste Automatizado ' + new Date().toLocaleTimeString(),
+      // Adicione outros campos de teste se você mapeou mais coisas
+      // 'email': 'teste@exemplo.com',
+      // 'cidade': 'Cidade Teste'
+    };
+
+    const headerRange = sheet.getRange(1, 1, 1, sheet.getLastColumn());
+    const headers = headerRange.getValues()[0].map(header => String(header).trim());
+
+    if (headers.length === 0 || headers.every(h => h === '')) {
+        Logger.log(`Erro no teste: A aba "${SHEET_NAME}" parece não ter cabeçalhos.`);
+        return;
+    }
+
+    const newRow = Array(headers.length).fill('');
+    const timestamp = new Date();
+    let dataFound = false;
+
+    for (const fieldName in FIELD_TO_COLUMN_MAP) {
+      if (testData.hasOwnProperty(fieldName)) {
+        const columnName = FIELD_TO_COLUMN_MAP[fieldName];
+        const columnIndex = headers.indexOf(columnName);
+        if (columnIndex !== -1) {
+          newRow[columnIndex] = testData[fieldName];
+          dataFound = true;
+        } else {
+           Logger.log(`Aviso no teste: Coluna "${columnName}" não encontrada.`);
+        }
+      }
+    }
+
+     if (TIMESTAMP_COLUMN_NAME) {
+        const timestampColumnIndex = headers.indexOf(TIMESTAMP_COLUMN_NAME);
+        if (timestampColumnIndex !== -1) {
+            newRow[timestampColumnIndex] = timestamp;
+        } else {
+             Logger.log(`Aviso no teste: Coluna de timestamp "${TIMESTAMP_COLUMN_NAME}" não encontrada.`);
+        }
+    }
+
+    if (!dataFound && !(TIMESTAMP_COLUMN_NAME && headers.includes(TIMESTAMP_COLUMN_NAME))) {
+       Logger.log("Erro no teste: Nenhum dado de teste foi mapeado para colunas existentes.");
+       return;
+    }
+
+    sheet.appendRow(newRow);
+    Logger.log(`Linha de teste adicionada com sucesso: [${newRow.join(', ')}]`);
+
+  } catch (error) {
+    Logger.log(`Erro durante o teste: ${error.message}\nStack: ${error.stack}`);
+  }
+}
