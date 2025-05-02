@@ -1,34 +1,34 @@
 <!DOCTYPE html>
 <html> 
 <head>
-	<meta charset="utf-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<meta name="generator" content="RocketCake">
-	<title></title>
-	<link rel="stylesheet" type="text/css" href="perfil.css">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Formulário de Perfil</title>
+    <link rel="stylesheet" type="text/css" href="perfil_html.css">
 </head>
 <body>
-	<div id="statusMessage"></div> <!-- Adicione onde deseja exibir a mensagem -->
-<div class="textstyle1">
-<span class="textstyle2"><br/></span><div id="container_f645165"><div id="container_f645165_padding" ><div class="textstyle1">  <span class="textstyle2">   cliente       <br/><br/>   </span>
-<input type="text" value="" title="" name="TextEdit2"  id="edit_5f0116bc" >
-  <span class="textstyle2"> cpf          </span>
-<input type="text" value="" title="" name="TextEdit1"  id="edit_15ec8179" >
-<span class="textstyle2"> tel                      <br/></span><span class="textstyle2"><br/><br/>   </span><input type="text" value="" title="" name="TextEdit3"  id="edit_4915d68c" >
-  <span class="textstyle2"> cep         </span>
-<input type="text" value="" title="" name="TextEdit4"  id="edit_30ba40bc" >
-  <span class="textstyle2"> Logradouro<br/><br/>   </span>
-<input type="text" value="" title="" name="TextEdit6"  id="edit_65b495a2" >
-  <span class="textstyle2"> Cidade    </span>
-<input type="text" value="" title="" name="TextEdit7"  id="edit_3f14847d" >
-  <span class="textstyle2">  Estado        </span>
-	     <!-- bbotao enviar-->
-  <button class="textstyle2 aiframe-btn" id="button_2fe25639" >enviar</button>	
-	   <!-- bbotao enviar-->
-<input type="text" value="" title="" name="TextEdit5"  id="edit_7912be8c" >
-  <span class="textstyle2">  Bairro<br/><br/></span>
-</div>
-<div style="clear:both"></div></div></div><span class="textstyle2"><br/><br/><br/><br/><br/><br/><br/><br/><br/></span>  </div>
-	<script src="perfil2.js"></script>
+    <div id="statusMessage" style="text-align: center; margin: 20px 0; color: green;"></div>
+    <div id="container_principal">
+        <div id="container_formulario">
+            <!-- Dados Pessoais -->
+            <div class="grupo_campos">
+                <input type="text" class="input-style" id="input_cpf" placeholder="CPF">
+                <input type="text" class="input-style" id="input_cep" placeholder="CEP">
+                <input type="text" class="input-style" id="input_cidade" placeholder="Cidade">
+                <input type="text" class="input-style" id="input_bairro" placeholder="Bairro">
+            </div>
+
+            <!-- Contato e Endereço -->
+            <div class="grupo_campos">
+                <input type="text" class="input-style" id="input_telefone" placeholder="Telefone">
+                <input type="text" class="input-style" id="input_logradouro" placeholder="Logradouro">
+                <input type="text" class="input-style" id="input_estado" placeholder="Estado">
+            </div>
+
+            <!-- Botão de Envio -->
+            <button id="botao_enviar">Enviar</button>
+        </div>
+    </div>
+    <script src="perfil.js"></script> <!-- Nome corrigido -->
 </body>
 </html>
