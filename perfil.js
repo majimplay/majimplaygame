@@ -26,7 +26,6 @@ function saveClientToSheet(clientData) {
 // Evento de clique no botão "Enviar"
 document.getElementById('botao_enviar').addEventListener('click', () => {
     const client = {
-        cliente: document.getElementById('input_cpf').value, // Ajuste conforme necessidade
         cpf: document.getElementById('input_cpf').value,
         tel: document.getElementById('input_telefone').value,
         cep: document.getElementById('input_cep').value,
