@@ -2,7 +2,7 @@
 const CLIENT_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxF30STg18Sv29ezFA3v5vgvmvHcoxJEc_tq36Yht_kGmxP4FgKm7ZJE3ET9rRsJSH9/exec'; // Verifique se esta é a URL correta para o cliente.gs
 
 // Chave usada para armazenar o token JWT no localStorage (deve ser a mesma usada em script.js)
-const USER_DATA_KEY = 'googleUserData';
+const USER_DATA_KEY = 'googleUserDataToken';
 
 // Variável global para armazenar o ID do Google do usuário logado
 let googleUserId = null;
