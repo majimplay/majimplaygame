@@ -1,6 +1,6 @@
 // --- Configuration ---
 // !!! IMPORTANTE: SUBSTITUA PELA URL DO SEU APP SCRIPT IMPLANTADO !!!
-const GOOGLE_APPS_SCRIPT_URL = 'SUA_NOVA_URL_DO_APP_SCRIPT_AQUI'; // Cole a URL aqui
+const GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzCIRbVqnxxhruGC-7yZjasWpHYlIqlo9z5U2RCpv4-qz6VF7I8XRqO7hqjPkXMDuNA/exec'; // Cole a URL aqui
 const USER_DATA_KEY = 'googleUserDataToken'; // Key for storing the raw ID token in localStorage
 
 // --- DOM Elements ---
