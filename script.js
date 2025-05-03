@@ -2,6 +2,7 @@
 // !!! IMPORTANTE: SUBSTITUA PELA URL DO SEU APP SCRIPT IMPLANTADO !!!
 const GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzCIRbVqnxxhruGC-7yZjasWpHYlIqlo9z5U2RCpv4-qz6VF7I8XRqO7hqjPkXMDuNA/exec'; // Cole a URL aqui
 const USER_DATA_KEY = 'googleUserDataToken'; // Key for storing the raw ID token in localStorage
+window.decodedToken = null; // Variável global
 
 // --- DOM Elements ---
 const googleSignInButtonContainer = document.getElementById('googleSignInButtonContainer');
@@ -37,9 +38,11 @@ function jwtDecode(token) {
             console.log('Token expired (client-side detection)');
             return null;
         }
+        window.decodedToken = payload;
         return payload;
     } catch (e) {
         console.error("Error decoding JWT on client:", e);
+        window.decodedToken = null;
         return null;
     }
 }
@@ -210,6 +213,7 @@ function handleCredentialResponse(response) {
  */
 function logout() {
     // Remove the stored token
+    window.decodedToken = null;
     localStorage.removeItem(USER_DATA_KEY);
     // Clear the UI
     updateUI(null);
