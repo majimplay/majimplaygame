@@ -2,29 +2,72 @@
 const CLIENT_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxF30STg18Sv29ezFA3v5vgvmvHcoxJEc_tq36Yht_kGmxP4FgKm7ZJE3ET9rRsJSH9/exec'; // Verifique se esta é a URL correta para o cliente.gs
 
 // Chave usada para armazenar o token JWT no localStorage (DEVE SER A MESMA USADA EM script.js)
-const USER_DATA_KEY_FROM_SCRIPT = 'googleUserDataToken'; // Corrigido para usar a mesma chave de script.js
+const USER_DATA_KEY_FROM_SCRIPT = 'googleUserDataToken';
 
-// Variável global para armazenar o ID do Google do usuário logado
+// Variável global para armazenar o ID do Google do usuário logado (neste script)
 let googleUserId = null;
 
 // --- Funções Auxiliares ---
 
 /**
+ * Decodifica um token JWT (JSON Web Token).
+ * Esta função apenas extrai o payload sem verificar a assinatura.
+ * A verificação real da assinatura deve ocorrer no servidor (Google Apps Script).
+ * @param {string} token O token JWT a ser decodificado.
+ * @returns {object|null} O payload decodificado ou null se o token for inválido, expirado ou ocorrer um erro.
+ */
+function jwtDecode_local(token) {
+    try {
+        if (!token) return null; // Retorna null se o token for nulo ou indefinido
+        const parts = token.split('.');
+        if (parts.length !== 3) {
+            console.error("Token JWT inválido: estrutura incorreta.");
+            return null; // O token deve ter 3 partes: header, payload, signature
+        }
+        const base64Url = parts[1]; // Pega a parte do payload
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/'); // Converte Base64Url para Base64
+        const jsonPayload = decodeURIComponent(atob(base64).split('').map(c =>
+            '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
+        ).join('')); // Decodifica Base64 e URI Component
+
+        const payload = JSON.parse(jsonPayload); // Analisa o JSON do payload
+
+        // Verificação básica de expiração no cliente
+        const currentTime = Date.now() / 1000; // Tempo atual em segundos
+        if (payload.exp && payload.exp < currentTime) {
+            console.log('Token expirado (detectado em perfil.js):', new Date(payload.exp * 1000));
+            return null; // Retorna null se expirado
+        }
+
+        // Verifica se o payload contém o ID do usuário ('sub')
+        if (!payload.sub) {
+             console.error("Token decodificado não contém 'sub' (ID do usuário).");
+             return null;
+        }
+
+
+        return payload; // Retorna o payload decodificado e válido (pelo menos no cliente)
+    } catch (e) {
+        console.error("Erro decodificando JWT em perfil.js:", e);
+        return null; // Retorna null em caso de erro na decodificação
+    }
+}
+
+
+/**
  * Busca dados do cliente na planilha associados ao googleUserId.
- * NOTA: Esta função assume que você implementou uma função doGet no seu
- * Google Apps Script (cliente.gs) que aceita 'googleUserId' como parâmetro
- * e retorna os dados do cliente em JSON.
  * @param {string} userId O ID do Google do usuário.
  */
 async function fetchClientData(userId) {
+    const statusMessage = document.getElementById('statusMessage');
     if (!userId) {
         console.log("Nenhum ID de usuário para buscar dados.");
-        document.getElementById('statusMessage').textContent = 'Erro interno: ID do usuário não disponível.';
+        if (statusMessage) statusMessage.textContent = 'Erro interno: ID do usuário não disponível.';
         return;
     }
     if (!CLIENT_SHEET_URL) {
         console.error('URL da planilha (CLIENT_SHEET_URL) não configurada em perfil.js');
-        document.getElementById('statusMessage').textContent = 'Erro: URL de busca não configurada.';
+        if (statusMessage) statusMessage.textContent = 'Erro: URL de busca não configurada.';
         return;
     }
 
@@ -32,7 +75,7 @@ async function fetchClientData(userId) {
     // Constrói a URL para a requisição GET, adicionando o googleUserId como parâmetro
     const fetchUrl = `${CLIENT_SHEET_URL}?googleUserId=${encodeURIComponent(userId)}`;
     console.log("Buscando dados do cliente em:", fetchUrl); // Log para depuração
-    document.getElementById('statusMessage').textContent = 'Buscando dados do perfil...';
+    if (statusMessage) statusMessage.textContent = 'Buscando dados do perfil...';
 
     try {
         // Faz a requisição GET para o Google Apps Script
@@ -40,7 +83,6 @@ async function fetchClientData(userId) {
 
         // Verifica se a resposta da rede foi bem-sucedida
         if (!response.ok) {
-            // Se a resposta não for OK (ex: 404, 500), lança um erro
             throw new Error(`Erro na rede ao buscar dados: ${response.status} ${response.statusText}`);
         }
 
@@ -51,24 +93,22 @@ async function fetchClientData(userId) {
         // Verifica se o Apps Script retornou um erro interno
         if (data.status === 'error') {
             console.error("Erro retornado pelo Apps Script:", data.message);
-            document.getElementById('statusMessage').textContent = `Erro ao buscar dados: ${data.message}`;
+            if (statusMessage) statusMessage.textContent = `Erro ao buscar dados: ${data.message}`;
         } else if (data.status === 'success' && data.clientData) {
             // Se encontrou dados, preenche o formulário
             populateForm(data.clientData);
-            document.getElementById('statusMessage').textContent = 'Dados do perfil carregados.';
+            if (statusMessage) statusMessage.textContent = 'Dados do perfil carregados.';
         } else {
             // Se não encontrou dados (ou formato inesperado)
             console.log("Nenhum dado de cliente encontrado para este usuário ou formato de resposta inesperado.");
-            document.getElementById('statusMessage').textContent = 'Nenhum perfil encontrado. Preencha para criar.';
-            // Limpar o formulário pode ser útil aqui se ele pudesse ter dados antigos
-            // clearForm(); // (Implementar se necessário)
+            if (statusMessage) statusMessage.textContent = 'Nenhum perfil encontrado. Preencha para criar.';
+            // clearForm(); // Implementar se necessário
         }
 
     } catch (error) {
         // Captura erros de rede ou de análise JSON
         console.error('Erro ao buscar dados do cliente:', error);
-        document.getElementById('statusMessage').textContent = `Erro ao conectar para buscar dados: ${error.message}`;
-        // Informa o usuário sobre o problema
+        if (statusMessage) statusMessage.textContent = `Erro ao conectar para buscar dados: ${error.message}`;
     }
 }
 
@@ -92,17 +132,12 @@ function populateForm(clientData) {
 
     console.log("Preenchendo formulário com:", clientData);
 
-    // Itera sobre o mapeamento
     for (const dataKey in fieldMap) {
-        // Verifica se o dado existe no objeto recebido
         if (clientData.hasOwnProperty(dataKey) && clientData[dataKey] !== undefined && clientData[dataKey] !== null) {
-            // Encontra o elemento do input no HTML usando o ID mapeado
             const inputElement = document.getElementById(fieldMap[dataKey]);
-            // Se o elemento existir, define seu valor
             if (inputElement) {
                 inputElement.value = clientData[dataKey];
             } else {
-                // Loga um aviso se o elemento do formulário não for encontrado
                 console.warn(`Elemento do formulário com ID "${fieldMap[dataKey]}" não encontrado para preencher o campo "${dataKey}".`);
             }
         }
@@ -115,19 +150,19 @@ function populateForm(clientData) {
  * @param {object} clientData Objeto contendo os dados do cliente a serem salvos/atualizados.
  */
 function saveClientToSheet(clientData) {
+    const statusMessage = document.getElementById('statusMessage');
     // Verifica se a URL do script está configurada
     if (!CLIENT_SHEET_URL) {
         console.error('URL da planilha (CLIENT_SHEET_URL) não configurada em perfil.js');
-        document.getElementById('statusMessage').textContent = 'Erro: URL de salvamento não configurada.';
-        return; // Interrompe a execução se a URL não estiver definida
+        if (statusMessage) statusMessage.textContent = 'Erro: URL de salvamento não configurada.';
+        return;
     }
 
     // Verifica se temos o googleUserId (essencial para associar os dados)
-    // Este ID deve ter sido definido no DOMContentLoaded ao verificar o token global
     if (!googleUserId) {
         console.error('ID do Google não encontrado. O usuário pode não estar logado ou o token é inválido.');
-        document.getElementById('statusMessage').textContent = 'Erro: ID do usuário não encontrado. Faça login novamente.';
-        return; // Interrompe se não houver ID do usuário
+        if (statusMessage) statusMessage.textContent = 'Erro: ID do usuário não encontrado. Faça login novamente.';
+        return;
     }
 
     // Adiciona o googleUserId ao objeto de dados que será enviado
@@ -137,108 +172,91 @@ function saveClientToSheet(clientData) {
     };
 
     console.log("Enviando dados para a planilha:", dataToSend); // Log para depuração
-    document.getElementById('statusMessage').textContent = 'Salvando dados...'; // Feedback para o usuário
+    if (statusMessage) statusMessage.textContent = 'Salvando dados...'; // Feedback para o usuário
 
     // Faz a requisição POST para o Google Apps Script
     fetch(CLIENT_SHEET_URL, {
         method: 'POST',
-        mode: 'no-cors', // Importante: 'no-cors' é necessário para scripts do Google Apps Script se não configurados para CORS
-        cache: 'no-cache', // Evita cache
+        mode: 'no-cors',
+        cache: 'no-cache',
         headers: {
-            // Mesmo com 'no-cors', 'Content-Type' pode ser útil para o script do lado do servidor
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify(dataToSend) // Converte o objeto JS em uma string JSON
+        body: JSON.stringify(dataToSend)
     })
     .then(response => {
-        // Com 'no-cors', a resposta é opaca, não podemos ler status ou corpo.
-        // Assumimos sucesso se não houver erro de rede.
         console.log('Dados enviados para o Google Apps Script (modo no-cors). A resposta é opaca.');
-        document.getElementById('statusMessage').textContent = 'Dados salvos com sucesso!'; // Mensagem otimista
-        // Idealmente, a confirmação viria de uma nova busca ou de uma resposta do script (se não usar no-cors)
+        if (statusMessage) statusMessage.textContent = 'Dados salvos com sucesso!';
     })
     .catch(error => {
-        // Captura erros de rede (offline, DNS, etc.) ou bloqueios
         console.error('Erro ao enviar dados para a planilha:', error);
-        document.getElementById('statusMessage').textContent = `Erro ao salvar: ${error.message}. Verifique a conexão.`;
-        // Informa o usuário sobre o problema
+        if (statusMessage) statusMessage.textContent = `Erro ao salvar: ${error.message}. Verifique a conexão.`;
     });
 }
 
 
 // --- Inicialização e Event Listeners ---
 
-// Executa quando o conteúdo do DOM (HTML) estiver completamente carregado e analisado
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("Perfil DOM carregado."); // Log para depuração
+    console.log("Perfil DOM carregado.");
     const statusMessage = document.getElementById('statusMessage'); // Elemento para exibir mensagens
 
-    // Tenta obter o token JWT armazenado no localStorage (usando a chave correta)
+    // 1. Tenta obter o token JWT armazenado no localStorage
     const storedToken = localStorage.getItem(USER_DATA_KEY_FROM_SCRIPT);
 
-    // Acessa a variável global 'decodedToken' que foi definida em script.js
-    // Assume-se que script.js já rodou e tentou decodificar o token na carga da página.
-    const currentDecodedToken = window.decodedToken;
-
-    if (storedToken && currentDecodedToken) {
-        // Se existe um token armazenado E ele foi decodificado com sucesso em script.js
-        console.log("Token encontrado no localStorage e decodificado globalmente.");
-
-        if (currentDecodedToken.sub) {
-            // Se o token global decodificado tem o ID do Google ('sub')
-            googleUserId = currentDecodedToken.sub; // Armazena o ID do Google globalmente
-            console.log("ID do Google obtido do token global:", googleUserId);
-
-            // Busca os dados do cliente associados a este ID
-            fetchClientData(googleUserId);
-            // A função fetchClientData cuidará de preencher o formulário se encontrar dados
-
-        } else {
-            // Token global existe mas não tem 'sub' (inesperado se a decodificação funcionou)
-            console.log("Token global decodificado não contém 'sub'.");
-            googleUserId = null; // Garante que o ID esteja nulo
-            if (statusMessage) statusMessage.textContent = 'Token inválido (sem ID). Faça login novamente.';
-        }
-
-    } else if (storedToken && !currentDecodedToken) {
-         // Token existe no localStorage, mas window.decodedToken está null.
-         // Isso significa que a decodificação em script.js falhou (token expirado/inválido).
-         console.log("Token armazenado encontrado, mas a decodificação global falhou (inválido/expirado?).");
-         googleUserId = null;
-         if (statusMessage) statusMessage.textContent = 'Sessão inválida ou expirada. Faça login novamente.';
-         // O script.js já deve ter lidado com o logout visual, mas garantimos o estado aqui.
-
-    } else {
-        // Se não houver token no localStorage
+    if (!storedToken) {
+        // Se não houver token
         console.log("Nenhum token encontrado no localStorage.");
         googleUserId = null;
         if (statusMessage) statusMessage.textContent = 'Você precisa estar logado para acessar o perfil.';
-        // Desabilitar o formulário ou redirecionar pode ser apropriado aqui
-        // Exemplo: document.getElementById('botao_enviar').disabled = true;
+        // Desabilitar o formulário ou outras ações podem ser necessárias aqui
+        const sendButton = document.getElementById('botao_enviar');
+        if(sendButton) sendButton.disabled = true; // Exemplo: desabilitar botão de salvar
+        return; // Interrompe a execução se não há token
     }
 
-    // Adiciona o listener ao botão 'Enviar' APÓS garantir que o DOM está pronto
+    // 2. Tenta decodificar o token localmente
+    console.log("Token encontrado, tentando decodificar localmente em perfil.js...");
+    const decodedPayload = jwtDecode_local(storedToken);
+
+    if (decodedPayload && decodedPayload.sub) {
+        // 3. Se o token foi decodificado com sucesso E contém o ID do usuário ('sub')
+        googleUserId = decodedPayload.sub; // Armazena o ID do Google
+        console.log("Token decodificado com sucesso em perfil.js. ID do Google:", googleUserId);
+
+        // 4. Busca os dados do cliente associados a este ID
+        fetchClientData(googleUserId);
+
+    } else {
+        // 5. Se a decodificação falhou (token inválido, expirado, sem 'sub', ou erro)
+        console.log("Falha ao decodificar o token localmente em perfil.js (inválido/expirado?).");
+        googleUserId = null; // Garante que o ID esteja nulo
+        if (statusMessage) statusMessage.textContent = 'Sessão inválida ou expirada. Faça login novamente.';
+         // Desabilitar o formulário ou outras ações podem ser necessárias aqui
+        const sendButton = document.getElementById('botao_enviar');
+        if(sendButton) sendButton.disabled = true; // Exemplo: desabilitar botão de salvar
+    }
+
+    // Adiciona o listener ao botão 'Enviar'
     const sendButton = document.getElementById('botao_enviar');
     if (sendButton) {
-        sendButton.addEventListener('click', () => {
-            // Coleta os dados atuais do formulário
-            const clientData = {
-                cpf: document.getElementById('input_cpf')?.value || '',
-                tel: document.getElementById('input_telefone')?.value || '',
-                cep: document.getElementById('input_cep')?.value || '',
-                logradouro: document.getElementById('input_logradouro')?.value || '',
-                cidade: document.getElementById('input_cidade')?.value || '',
-                bairro: document.getElementById('input_bairro')?.value || '',
-                estado: document.getElementById('input_estado')?.value || ''
-                // Adicione outros campos conforme necessário
-            };
-
-            console.log('Dados coletados do formulário para envio:', clientData); // Log
-
-            // Chama a função para salvar/atualizar os dados na planilha
-            // Usa a variável global 'googleUserId' que foi definida acima
-            saveClientToSheet(clientData);
-        });
+        // Só adiciona o listener se ele não foi desabilitado acima
+        if (!sendButton.disabled) {
+             sendButton.addEventListener('click', () => {
+                // Coleta os dados atuais do formulário
+                const clientData = {
+                    cpf: document.getElementById('input_cpf')?.value || '',
+                    tel: document.getElementById('input_telefone')?.value || '',
+                    cep: document.getElementById('input_cep')?.value || '',
+                    logradouro: document.getElementById('input_logradouro')?.value || '',
+                    cidade: document.getElementById('input_cidade')?.value || '',
+                    bairro: document.getElementById('input_bairro')?.value || '',
+                    estado: document.getElementById('input_estado')?.value || ''
+                };
+                console.log('Dados coletados do formulário para envio:', clientData);
+                saveClientToSheet(clientData); // Usa a variável global 'googleUserId'
+            });
+        }
     } else {
         console.error("Botão 'Enviar' (ID: botao_enviar) não encontrado.");
     }
