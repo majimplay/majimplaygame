@@ -23,10 +23,10 @@ let googleUserId = null;
   //          console.error("Token JWT inválido: sem payload.");
    //         return null;
     //    }
-        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-        const jsonPayload = decodeURIComponent(atob(base64).split('').map(c =>
-            '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
-        ).join(''));
+    //    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    //    const jsonPayload = decodeURIComponent(atob(base64).split('').map(c =>
+    //        '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
+   //     ).join(''));
    //     const payload = JSON.parse(jsonPayload);
 
         // Verificar expiração do token
