@@ -16,34 +16,34 @@ let googleUserId = null;
  * @param {string} token O token JWT.
  * @returns {object|null} O payload decodificado ou null se houver erro ou token expirado.
  */
-function jwtDecode(token) {
-    try {
-        const base64Url = token.split('.')[1];
-        if (!base64Url) {
-            console.error("Token JWT inválido: sem payload.");
-            return null;
-        }
+//function jwtDecode(token) {
+//    try {
+  //      const base64Url = token.split('.')[1];
+  //      if (!base64Url) {
+  //          console.error("Token JWT inválido: sem payload.");
+   //         return null;
+    //    }
         const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
         const jsonPayload = decodeURIComponent(atob(base64).split('').map(c =>
             '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
         ).join(''));
-        const payload = JSON.parse(jsonPayload);
+   //     const payload = JSON.parse(jsonPayload);
 
         // Verificar expiração do token
-        const currentTime = Date.now() / 1000; // Tempo atual em segundos
-        if (payload.exp && payload.exp < currentTime) {
-            console.log('Token expirado em:', new Date(payload.exp * 1000));
-            // Considerar limpar o token do localStorage aqui se necessário
+     //   const currentTime = Date.now() / 1000; // Tempo atual em segundos
+     //   if (payload.exp && payload.exp < currentTime) {
+      //      console.log('Token expirado em:', new Date(payload.exp * 1000));
+        //    // Considerar limpar o token do localStorage aqui se necessário
             // localStorage.removeItem(USER_DATA_KEY);
-            return null; // Retorna null se expirado
-        }
+       //     return null; // Retorna null se expirado
+     //   }
 
-        return payload;
-    } catch (e) {
-        console.error("Erro decodificando JWT:", e);
-        return null;
-    }
-}
+   //     return payload;
+  //  } catch (e) {
+   //     console.error("Erro decodificando JWT:", e);
+   //     return null;
+  //  }
+//}
 
 /**
  * Busca dados do cliente na planilha associados ao googleUserId.
