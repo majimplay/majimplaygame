@@ -1,4 +1,4 @@
-// Funcao para decodificar JWT (anteriormente em jwtDecode_local.txt)
+// Funcao para decodificar JWT (compatível com perfil.js)
 function jwtDecode_local(token) {
     try {
         if (!token) {
@@ -21,7 +21,7 @@ function jwtDecode_local(token) {
         const currentTime = Date.now() / 1000;
         if (payload.exp && payload.exp < currentTime) {
             console.log('Token expirado (detectado no cliente):', new Date(payload.exp * 1000));
-            // localStorage.removeItem('jwtToken'); // Opcional: remover token expirado
+            localStorage.removeItem('googleUserDataToken');
             return null;
         }
 
@@ -37,136 +37,126 @@ function jwtDecode_local(token) {
     }
 }
 
-// criarloja.js - Script para a página de criação de loja
+// Script para a página de criação de loja
 document.addEventListener('DOMContentLoaded', function() {
-    // Elementos da página
-    const storeNameInput = document.getElementById('store_name_input');
-    const storeCepInput = document.getElementById('store_cep_input');
-    const saveButton = document.getElementById('save_button');
-    const ordersLabel = document.querySelector('#orders_label .textstyle6'); // Assumindo que textstyle6 é o span correto
-    const ordersButton = document.getElementById('orders_button');
-    const productsButton = document.getElementById('products_button');
-    const logoUpload = document.getElementById('logo_upload_image');
-    const backgroundUpload = document.getElementById('background_upload_image');
-    const welcomeLabel = document.getElementById('welcome_label');
-
-    // URL do seu Web App do Google Apps Script (SUBSTITUA ESTA URL)
+    // Configurações compartilhadas com perfil.js
+    const USER_DATA_KEY_FROM_SCRIPT = 'googleUserDataToken';
     const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw1boPWweXlVIQPXdyt9vBFFcDwsuo438W5cPWgGnQTdqaZwMMfqYB4-j_nqs78yl99/exec';
 
-    // Tenta obter o token do localStorage (ajuste 'jwtToken' se o nome for diferente)
-    const authToken = localStorage.getItem('jwtToken');
-    const userData = jwtDecode_local(authToken);
+    // Elementos da página
+    const elements = {
+        storeNameInput: document.getElementById('store_name_input'),
+        storeCepInput: document.getElementById('store_cep_input'),
+        saveButton: document.getElementById('save_button'),
+        ordersLabel: document.querySelector('#orders_label .textstyle6'),
+        ordersButton: document.getElementById('orders_button'),
+        productsButton: document.getElementById('products_button'),
+        logoUpload: document.getElementById('logo_upload_image'),
+        backgroundUpload: document.getElementById('background_upload_image'),
+        welcomeLabel: document.getElementById('welcome_label')
+    };
 
-    if (userData) {
-        console.log('Usuário logado:', userData);
-        // Voce pode usar userData.sub (ID do usuário) ou outros campos do payload aqui
-        // Ex: welcomeLabel.innerHTML = `Bem vindo, ${userData.name || 'usuário'}! Crie sua loja`;
-    } else {
-        console.log('Nenhum usuário logado ou token inválido/expirado.');
-        // Adicionar lógica para redirecionar para login ou mostrar mensagem, se necessário
-        // Ex: window.location.href = 'login.html';
+    // Verificar elementos essenciais
+    if (!elements.saveButton || !elements.storeNameInput || !elements.storeCepInput) {
+        console.error('Elementos essenciais não encontrados!');
+        return;
     }
 
+    // Verificação inicial de autenticação
+    const authToken = localStorage.getItem(USER_DATA_KEY_FROM_SCRIPT);
+    const userData = jwtDecode_local(authToken);
+
+    if (!userData?.sub) {
+        alert('Sessão expirada ou não autenticado. Redirecionando...');
+        window.location.href = 'login.html';
+        return;
+    }
+
+    // Configuração inicial
+    console.log('Usuário logado:', userData);
+    elements.welcomeLabel.innerHTML = `Bem vindo, ${userData.name || userData.email || 'usuário'}! Crie sua loja`;
     loadStoreData();
 
-    saveButton.addEventListener('click', function() {
-        // Primeiro, verifica se o usuário está logado ao salvar
-        const currentToken = localStorage.getItem('jwtToken');
+    // Event Listeners
+    elements.saveButton.addEventListener('click', handleSave);
+    elements.ordersButton.addEventListener('click', () => window.location.href = 'pedidos.html');
+    elements.productsButton.addEventListener('click', () => window.location.href = 'produtosdaloja.html');
+
+    // Configuração do upload de imagens
+    setupImageUpload('logo_upload_image', 'storeLogo');
+    setupImageUpload('background_upload_image', 'storeBackground');
+
+    function handleSave() {
+        const currentToken = localStorage.getItem(USER_DATA_KEY_FROM_SCRIPT);
         const currentUserData = jwtDecode_local(currentToken);
 
-        if (!currentUserData) {
-            alert('Sessão expirada ou usuário não logado. Por favor, faça login novamente.');
-            // Opcional: redirecionar para a página de login
-            // window.location.href = 'pagina_de_login.html';
-            return; // Interrompe o salvamento se não houver usuário
+        if (!currentUserData?.sub) {
+            alert('Sessão expirada. Faça login novamente.');
+            window.location.href = 'login.html';
+            return;
         }
 
         const storeData = {
-            userId: currentUserData.sub, // ID do usuário do token JWT
-            userEmail: currentUserData.email || '', // Supondo que o token tenha o email
-            storeName: storeNameInput.value.replace('nome =', '').trim(),
-            storeCep: storeCepInput.value.replace('cep =', '').trim(),
-            logoUrl: logoUpload.src.startsWith('data:image') ? 'Imagem em Base64' : logoUpload.src, // Evita enviar base64 longo demais se não for necessário
-            backgroundUrl: backgroundUpload.src.startsWith('data:image') ? 'Imagem em Base64' : backgroundUpload.src,
+            userId: currentUserData.sub,
+            userEmail: currentUserData.email || '',
+            storeName: elements.storeNameInput.value.replace('nome =', '').trim(),
+            storeCep: elements.storeCepInput.value.replace('cep =', '').trim(),
+            logoUrl: elements.logoUpload.src.startsWith('data:image') ? 'Imagem em Base64' : elements.logoUpload.src,
+            backgroundUrl: elements.backgroundUpload.src.startsWith('data:image') ? 'Imagem em Base64' : elements.backgroundUpload.src,
             timestamp: new Date().toISOString()
-            // Adicione outros campos que você deseja salvar na planilha
         };
 
-        // Salva no localStorage como antes
+        // Salvar localmente
         localStorage.setItem('storeDataLocal', JSON.stringify({
             name: storeData.storeName,
             cep: storeData.storeCep,
-            logo: logoUpload.src, // Salva a imagem completa no localStorage
-            background: backgroundUpload.src // Salva a imagem completa no localStorage
+            logo: elements.logoUpload.src,
+            background: elements.backgroundUpload.src
         }));
 
         updateWelcomeMessage(storeData.storeName);
-        checkOrders(); // Esta função precisa ser definida ou adaptada
-        alert('Dados da loja salvos localmente!');
-
-        // Envia os dados para a Planilha Google
+        checkOrders();
         sendDataToSheet(storeData);
-    });
+    }
 
     async function sendDataToSheet(data) {
         try {
             const response = await fetch(GOOGLE_SCRIPT_URL, {
                 method: 'POST',
-                mode: 'cors', // Necessário para requisições cross-origin
-                cache: 'no-cache',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(data) // Envia os dados como JSON
+                mode: 'cors',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
             });
-
-            // O Google Apps Script, por padrão em POSTs simples, pode retornar HTML ou texto.
-            // Se você configurar o Apps Script para retornar JSON, pode usar response.json()
-            const result = await response.text(); // ou response.json() se o script retornar JSON
-
-            console.log('Sucesso ao enviar para planilha:', result);
-            alert('Dados enviados para a planilha com sucesso!');
-
+            
+            const result = await response.json();
+            
+            if (result.status === 'error') {
+                throw new Error(result.message);
+            }
+            
+            console.log('Dados salvos na planilha:', result);
+            alert('Dados enviados com sucesso!');
         } catch (error) {
-            console.error('Erro ao enviar dados para a planilha:', error);
-            alert('Falha ao enviar dados para a planilha. Verifique o console para mais detalhes.');
+            console.error('Erro ao salvar:', error);
+            alert(`Falha no envio: ${error.message}`);
         }
     }
 
-
     function updateWelcomeMessage(storeName) {
-        const currentToken = localStorage.getItem('jwtToken');
-        const currentUserData = jwtDecode_local(currentToken);
-        let userName = 'usuário'; // Nome padrão
-
-        if (currentUserData && currentUserData.name) { // Supondo que o token tenha um campo 'name'
-            userName = currentUserData.name;
-        } else if (currentUserData && currentUserData.email) { // Ou usa o email
-             userName = currentUserData.email;
-        }
-
-
-        if (storeName) {
-            welcomeLabel.innerHTML = `Bem vindo, ${userName}!<br/>Sua loja: ${storeName}`;
-        } else {
-            welcomeLabel.innerHTML = `Bem vindo, ${userName}!<br/>Crie sua loja`;
-        }
+        const userName = userData.name || userData.email || 'usuário';
+        elements.welcomeLabel.innerHTML = storeName 
+            ? `Bem vindo, ${userName}!<br/>Sua loja: ${storeName}`
+            : `Bem vindo, ${userName}!<br/>Crie sua loja`;
     }
 
     function checkOrders() {
-        // Adapte esta função conforme sua lógica de pedidos
-        // Exemplo: buscar pedidos do localStorage ou de uma API
         const storeData = JSON.parse(localStorage.getItem('storeDataLocal')) || {};
-        const orders = storeData.orders || []; // Supondo que 'orders' seja um array
+        const orders = storeData.orders || [];
         
-        if (ordersLabel) { // Verifica se o elemento existe
-            if (orders.length > 0) {
-                ordersLabel.textContent = `Você tem (${orders.length}) pedidos`;
-            } else {
-                ordersLabel.textContent = 'Você tem (0) pedidos';
-            }
-        } else {
-            console.warn("Elemento 'ordersLabel' não encontrado para atualizar contagem de pedidos.");
+        if (elements.ordersLabel) {
+            elements.ordersLabel.textContent = orders.length > 0 
+                ? `Você tem (${orders.length}) pedidos`
+                : 'Você tem (0) pedidos';
         }
     }
 
@@ -174,91 +164,68 @@ document.addEventListener('DOMContentLoaded', function() {
         const storeData = JSON.parse(localStorage.getItem('storeDataLocal')) || {};
         
         if (storeData.name) {
-            storeNameInput.value = `nome = ${storeData.name}`;
+            elements.storeNameInput.value = `nome = ${storeData.name}`;
         }
         
         if (storeData.cep) {
-            storeCepInput.value = `cep = ${storeData.cep}`;
+            elements.storeCepInput.value = `cep = ${storeData.cep}`;
         }
         
-        if (storeData.logo && storeData.logo !== 'rc_images/drop_here.png') { // Não carrega placeholder se já houver logo
-            logoUpload.src = storeData.logo;
+        if (storeData.logo && !storeData.logo.includes('drop_here.png')) {
+            elements.logoUpload.src = storeData.logo;
         }
         
-        if (storeData.background && storeData.background !== 'rc_images/drop_here.png') { // Não carrega placeholder se já houver fundo
-            backgroundUpload.src = storeData.background;
+        if (storeData.background && !storeData.background.includes('drop_here.png')) {
+            elements.backgroundUpload.src = storeData.background;
         }
         
         updateWelcomeMessage(storeData.name);
         checkOrders();
     }
 
-    ordersButton.addEventListener('click', function() {
-        window.location.href = 'pedidos.html'; // Certifique-se que este arquivo existe
-    });
-
-    productsButton.addEventListener('click', function() {
-        window.location.href = 'produtosdaloja.html'; // Certifique-se que este arquivo existe
-    });
-
     function setupImageUpload(elementId, storageKey) {
         const uploadElement = document.getElementById(elementId);
-        if (!uploadElement) {
-            console.error(`Elemento de upload ${elementId} não encontrado.`);
-            return;
-        }
+        if (!uploadElement) return;
 
         function processFile(file) {
-            if (!file.type.match('image.*')) {
-                alert('Por favor, selecione apenas imagens!');
+            if (!file.type.startsWith('image/')) {
+                alert('Selecione apenas imagens!');
                 return;
             }
-            const reader = new FileReader();
-            reader.onload = function(event) {
-                uploadElement.src = event.target.result;
-                localStorage.setItem(storageKey, event.target.result); // Salva a imagem em base64
 
-                // Atualiza os dados da loja no localStorage principal também
-                const currentStoreData = JSON.parse(localStorage.getItem('storeDataLocal')) || {};
-                if (storageKey === 'storeLogo') {
-                    currentStoreData.logo = event.target.result;
-                } else if (storageKey === 'storeBackground') {
-                    currentStoreData.background = event.target.result;
-                }
-                localStorage.setItem('storeDataLocal', JSON.stringify(currentStoreData));
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                uploadElement.src = e.target.result;
+                const storeData = JSON.parse(localStorage.getItem('storeDataLocal')) || {};
+                storeData[storageKey === 'storeLogo' ? 'logo' : 'background'] = e.target.result;
+                localStorage.setItem('storeDataLocal', JSON.stringify(storeData));
             };
             reader.readAsDataURL(file);
         }
 
+        // Handlers de drag and drop
         uploadElement.addEventListener('dragover', (e) => {
             e.preventDefault();
-            e.stopPropagation();
             uploadElement.style.border = '2px dashed #5A4ABC';
         });
-        uploadElement.addEventListener('dragleave', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
+
+        uploadElement.addEventListener('dragleave', () => {
             uploadElement.style.border = 'none';
         });
+
         uploadElement.addEventListener('drop', (e) => {
             e.preventDefault();
-            e.stopPropagation();
             uploadElement.style.border = 'none';
-            const file = e.dataTransfer.files[0];
-            processFile(file);
+            if (e.dataTransfer.files[0]) processFile(e.dataTransfer.files[0]);
         });
+
+        // Handler de clique
         uploadElement.addEventListener('click', () => {
             const input = document.createElement('input');
             input.type = 'file';
             input.accept = 'image/*';
-            input.onchange = (e) => {
-                const file = e.target.files[0];
-                processFile(file);
-            };
+            input.onchange = (e) => e.target.files[0] && processFile(e.target.files[0]);
             input.click();
         });
     }
-
-    setupImageUpload('logo_upload_image', 'storeLogo');
-    setupImageUpload('background_upload_image', 'storeBackground');
 });
