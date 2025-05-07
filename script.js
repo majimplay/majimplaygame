@@ -102,7 +102,7 @@ if (contaBtn) {
         }
     });
 }
-if (contaBtn) {
+if (lojaBtn) {
     contaBtn.addEventListener('click', () => {
         if (localStorage.getItem(USER_DATA_KEY)) {
             showIframe('LojaFrame');
