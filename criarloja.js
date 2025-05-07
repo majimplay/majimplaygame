@@ -79,8 +79,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Event Listeners
     elements.saveButton.addEventListener('click', handleSave);
-    elements.ordersButton.addEventListener('click', () => window.location.href = 'pedidos.html');
-    elements.productsButton.addEventListener('click', () => window.location.href = 'produtosdaloja.html');
+//    elements.ordersButton.addEventListener('click', () => window.location.href = 'pedidos.html');
+//    elements.productsButton.addEventListener('click', () => window.location.href = 'produtosdaloja.html');
 
     // Configuração do upload de imagens
     setupImageUpload('logo_upload_image', 'storeLogo');
