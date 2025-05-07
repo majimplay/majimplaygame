@@ -1,0 +1,36 @@
+function jwtDecode_local(token) {
+    try {
+        if (!token) return null; // Retorna null se o token for nulo ou indefinido
+        const parts = token.split('.');
+        if (parts.length !== 3) {
+            console.error("Token JWT inválido: estrutura incorreta.");
+            return null; // O token deve ter 3 partes: header, payload, signature
+        }
+        const base64Url = parts[1]; // Pega a parte do payload
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/'); // Converte Base64Url para Base64
+        const jsonPayload = decodeURIComponent(atob(base64).split('').map(c =>
+            '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
+        ).join('')); // Decodifica Base64 e URI Component
+
+        const payload = JSON.parse(jsonPayload); // Analisa o JSON do payload
+
+        // Verificação básica de expiração no cliente
+        const currentTime = Date.now() / 1000; // Tempo atual em segundos
+        if (payload.exp && payload.exp < currentTime) {
+            console.log('Token expirado (detectado em perfil.js):', new Date(payload.exp * 1000));
+            return null; // Retorna null se expirado
+        }
+
+        // Verifica se o payload contém o ID do usuário ('sub')
+        if (!payload.sub) {
+             console.error("Token decodificado não contém 'sub' (ID do usuário).");
+             return null;
+        }
+
+
+        return payload; // Retorna o payload decodificado e válido (pelo menos no cliente)
+    } catch (e) {
+        console.error("Erro decodificando JWT em perfil.js:", e);
+        return null; // Retorna null em caso de erro na decodificação
+    }
+}
