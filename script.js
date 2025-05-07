@@ -88,6 +88,7 @@ function showIframe(iframeId) {
 // Iframe Event Listeners (Keep as is)
 const registoBtn = document.getElementById('registo');
 const contaBtn = document.getElementById('conta');
+const contaBtn = document.getElementById('loja');
 if (registoBtn) {
     registoBtn.addEventListener('click', () => showIframe('registoFrame'));
 }
@@ -95,6 +96,16 @@ if (contaBtn) {
     contaBtn.addEventListener('click', () => {
         if (localStorage.getItem(USER_DATA_KEY)) {
             showIframe('contaFrame');
+        } else {
+            statusMessageDiv.textContent = 'Faça login primeiro para acessar seu perfil!';
+            statusMessageDiv.style.color = 'orange';
+        }
+    });
+}
+if (contaBtn) {
+    contaBtn.addEventListener('click', () => {
+        if (localStorage.getItem(USER_DATA_KEY)) {
+            showIframe('LojaFrame');
         } else {
             statusMessageDiv.textContent = 'Faça login primeiro para acessar seu perfil!';
             statusMessageDiv.style.color = 'orange';
