@@ -1,0 +1,32 @@
+a { color:#5D5D9E; } 
+a:visited { color:#5D5D9E; } 
+a:active { color:#5C615E; } 
+a:hover { color:#B2B3B4; } 
+body { background-color:#FFFFFF; padding:0;  margin: 0; }
+.textstyle1 { text-align:left; }
+#main_container { vertical-align: top; position:relative; display: inline-block; width:100%; min-height:762px; background-color:#00FFFF;  }
+#main_container_padding { margin: 10px; display: block;  }
+.textstyle2 { text-align:center; }
+.textstyle3 { font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000;  }
+#welcome_label { vertical-align: bottom; position:relative; display: inline-block; width:524px; height:179px; background:none; font-size:36pt; font-family:Arial, Helvetica, sans-serif; color:#000000; text-align:center;  }
+#input_fields_container { vertical-align: top; position:relative; display: inline-block; width:100%; min-height:118px; background:none;  }
+#input_fields_container_padding { margin: 10px; display: block;  }
+#store_name_input { box-sizing: border-box; vertical-align: bottom; position:relative; display: inline-block; width:150px; height:30px; background-color:#FFFFFF; border: 1px solid #A0A0A0; font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000;  }
+#store_cep_input { box-sizing: border-box; vertical-align: bottom; position:relative; display: inline-block; width:150px; height:30px; background-color:#FFFFFF; border: 1px solid #A0A0A0; font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000;  }
+#save_button { box-sizing: border-box; vertical-align: bottom; border-radius: 9px; position:relative; display: inline-block; width:150px; height:40px; background-color:#5A4ABC; background: linear-gradient(to bottom,#5A4ABC, #282154 50%, #1F1941 50%, #16122F); border: 2px solid #2F2759;  }
+.vcenterstyle1 { display: table; width: 100%; height: 100%; }
+.vcenterstyle2 { display: table-cell; vertical-align: middle; }
+.textstyle4 { font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#FFFFFF;  }
+#orders_label { vertical-align: bottom; position:relative; display: inline-block; background:none;  }
+.textstyle5 { font-size:36pt; font-family:Arial, Helvetica, sans-serif; color:#000000;  }
+.textstyle6 { font-size:28pt; font-family:Arial, Helvetica, sans-serif; color:#000000;  }
+#orders_button { box-sizing: border-box; vertical-align: bottom; border-radius: 10px; position:relative; display: inline-block; width:512px; height:512px; background-color:#AC0800; background-image: url(rc_images/pedidos.jpg); background-position:top left; background-size:cover; border: 4px solid #404040;  }
+#products_label { vertical-align: bottom; position:relative; display: inline-block; background:none; font-size:40pt; font-family:Arial, Helvetica, sans-serif; color:#000000; text-align:left;  }
+#products_button { box-sizing: border-box; vertical-align: bottom; border-radius: 10px; position:relative; display: inline-block; width:512px; height:512px; background-color:#6654C0; background-image: url(rc_images/produtos.jpg); background-position:top left; background-size:cover; border: 4px solid #404040;  }
+#customization_label { box-sizing: border-box; vertical-align: bottom; position:relative; display: inline-block; width:115px; height:30px; background:none; border: 1px solid #A0A0A0; font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000;  }
+#logo_label { box-sizing: border-box; vertical-align: bottom; position:relative; display: inline-block; width:67px; height:30px; background:none; border: 1px solid #A0A0A0; font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000;  }
+#logo_upload_image { vertical-align: bottom; position:relative; display: inline-block; width:50%; background:none; height:auto;  }
+#background_label { vertical-align: bottom; position:relative; display: inline-block; background:none; font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000; text-align:left;  }
+#background_upload_image { vertical-align: bottom; position:relative; display: inline-block; width:50%; background:none; height:auto;  }
+#robovendeno_image { vertical-align: bottom; position:relative; display: inline-block; width:50%; background:none; height:auto;  }
+#store_example_image { vertical-align: bottom; position:relative; display: inline-block; width:50%; background:none; height:auto;  }
