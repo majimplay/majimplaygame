@@ -17,7 +17,7 @@ function jwtDecode_local(token) {
         // Verificação básica de expiração no cliente
         const currentTime = Date.now() / 1000; // Tempo atual em segundos
         if (payload.exp && payload.exp < currentTime) {
-            console.log('Token expirado (detectado em perfil.js):', new Date(payload.exp * 1000));
+            console.log('Token expirado (detectado em):', new Date(payload.exp * 1000));
             return null; // Retorna null se expirado
         }
 
