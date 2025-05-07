@@ -88,7 +88,7 @@ function showIframe(iframeId) {
 // Iframe Event Listeners (Keep as is)
 const registoBtn = document.getElementById('registo');
 const contaBtn = document.getElementById('conta');
-const contaBtn = document.getElementById('loja');
+const lojaBtn = document.getElementById('loja');
 if (registoBtn) {
     registoBtn.addEventListener('click', () => showIframe('registoFrame'));
 }
@@ -103,7 +103,7 @@ if (contaBtn) {
     });
 }
 if (lojaBtn) {
-    contaBtn.addEventListener('click', () => {
+    lojaBtn.addEventListener('click', () => {
         if (localStorage.getItem(USER_DATA_KEY)) {
             showIframe('LojaFrame');
         } else {
