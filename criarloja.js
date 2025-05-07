@@ -119,29 +119,24 @@ document.addEventListener('DOMContentLoaded', function() {
         sendDataToSheet(storeData);
     }
 
-    async function sendDataToSheet(data) {
-        try {
-            const response = await fetch(GOOGLE_SCRIPT_URL, {
-                method: 'POST',
-                mode: 'no-cors',
-                cache: 'no-cache',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(data)
-            });
-            
-            const result = await response.json();
-            
-            if (result.status === 'error') {
-                throw new Error(result.message);
-            }
-            
-            console.log('Dados salvos na planilha:', result);
-            alert('Dados enviados com sucesso!');
-        } catch (error) {
-            console.error('Erro ao salvar:', error);
-            alert(`Falha no envio: ${error.message}`);
-        }
+   async function sendDataToSheet(data) {
+    try {
+        const response = await fetch(GOOGLE_SCRIPT_URL, {
+            method: 'POST',
+            mode: 'no-cors', // Alterado para no-cors
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        
+        // Em modo no-cors não podemos ler a resposta diretamente
+        console.log('Requisição enviada (resposta opaca)');
+        alert('Dados enviados com sucesso!'); // Confirmação otimista
+        
+    } catch (error) {
+        console.error('Erro ao salvar:', error);
+        alert('Falha na conexão. Verifique sua rede e tente novamente.');
     }
+}
 
     function updateWelcomeMessage(storeName) {
         const userName = userData.name || userData.email || 'usuário';
