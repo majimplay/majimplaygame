@@ -174,7 +174,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         console.log('Requisição enviada para Google Sheet (resposta opaca devido ao no-cors)');
         alert('Dados da loja enviados! Verifique sua planilha.'); 
-        
+          console.log(storeData);
     } catch (error) {
         console.error('Erro ao salvar dados na planilha:', error);
         alert('Falha ao enviar dados para a planilha. Verifique sua conexão e a configuração do Google Apps Script.');
