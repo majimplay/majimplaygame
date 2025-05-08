@@ -41,7 +41,7 @@ function jwtDecode_local(token) {
 async function uploadToImgBB(file, apiKey) {
     const formData = new FormData();
     formData.append('image', file);
-
+    formData.append('album', '2SGYcL');
     try {
         const response = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, {
             method: 'POST',
