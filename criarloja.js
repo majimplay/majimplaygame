@@ -5,45 +5,24 @@ const DROPBOX_UPLOAD_PATH = 'Aplicativos/lojaimagens'; // ← Garanta que esta p
 // Função para decodificar JWT (compatível com perfil.js)
 function jwtDecode_local(token) {
     try {
-        if (!token) {
-            console.log('Nenhum token fornecido para decodificação.');
-            return null;
-        }
+        if (!token) return null;
         const parts = token.split('.');
-        if (parts.length !== 3) {
-            console.error("Token JWT inválido: estrutura incorreta.");
-            return null;
-        }
-        const base64Url = parts[1];
-        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-const jsonPayload = decodeURIComponent(
-    atob(base64)
-        .split('')
-        .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-        .join('')
-);
+        if (parts.length !== 3) return null;
 
-        const payload = JSON.parse(jsonPayload);
+        const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(
+            atob(base64)
+                .split('')
+                .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+                .join('')
+        );
 
-        const currentTime = Date.now() / 1000;
-        if (payload.exp && payload.exp < currentTime) {
-            console.log('Token expirado (detectado no cliente):', new Date(payload.exp * 1000));
-            localStorage.removeItem('googleUserDataToken');
-            return null;
-        }
-
-        if (!payload.sub) {
-             console.error("Token decodificado não contém 'sub' (ID do usuário).");
-             return null;
-        }
-        console.log('Token decodificado com sucesso:', payload);
-        return payload;
+        return JSON.parse(jsonPayload);
     } catch (e) {
         console.error("Erro decodificando JWT:", e);
         return null;
     }
 }
-
 // Script para a página de criação de loja
 document.addEventListener('DOMContentLoaded', function() {
     // Configurações compartilhadas
@@ -138,15 +117,23 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    function setupImageUpload(elementId, storageKey) {
+     function setupImageUpload(elementId, storageKey) {
         const uploadElement = document.getElementById(elementId);
         if (!uploadElement) return;
 
         async function uploadToDropbox(file) {
-            const filename = `${DROPBOX_UPLOAD_PATH}${Date.now()}_${file.name}`;
+            const filename = `${DROPBOX_UPLOAD_PATH}${Date.now()}_${file.name.replace(/[^a-z0-9\.]/gi, '_')}`;
             
             try {
-                // Upload do arquivo
+                // 1. Ler o arquivo como ArrayBuffer
+                const fileBuffer = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = reject;
+                    reader.readAsArrayBuffer(file);
+                });
+
+                // 2. Fazer upload
                 const uploadResponse = await fetch('https://content.dropboxapi.com/2/files/upload', {
                     method: 'POST',
                     headers: {
@@ -154,17 +141,20 @@ document.addEventListener('DOMContentLoaded', function() {
                         'Content-Type': 'application/octet-stream',
                         'Dropbox-API-Arg': JSON.stringify({
                             path: filename,
-                            mode: 'add',
+                            mode: 'overwrite',
                             autorename: true,
                             mute: false
                         })
                     },
-                    body: file
+                    body: fileBuffer
                 });
 
-                if (!uploadResponse.ok) throw new Error('Falha no upload');
+                if (!uploadResponse.ok) {
+                    const errorData = await uploadResponse.json();
+                    throw new Error(errorData.error_summary || 'Falha no upload');
+                }
 
-                // Criar link compartilhável
+                // 3. Criar link compartilhável
                 const shareResponse = await fetch('https://api.dropboxapi.com/2/sharing/create_shared_link_with_settings', {
                     method: 'POST',
                     headers: {
@@ -179,15 +169,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 const shareData = await shareResponse.json();
                 return shareData.url.replace('?dl=0', '?raw=1');
+
             } catch (error) {
-                console.error('Erro no upload:', error);
+                console.error('Erro detalhado:', {
+                    name: error.name,
+                    message: error.message,
+                    stack: error.stack
+                });
                 throw error;
             }
         }
-
-        async function processFile(file) {
+       async function processFile(file) {
             if (!file.type.startsWith('image/')) {
-                alert('Apenas imagens são permitidas!');
+                alert('Apenas arquivos de imagem são permitidos!');
                 return;
             }
 
@@ -195,32 +189,25 @@ document.addEventListener('DOMContentLoaded', function() {
                 const imageUrl = await uploadToDropbox(file);
                 uploadElement.src = imageUrl;
                 
+                // Atualizar localStorage
                 const storeData = JSON.parse(localStorage.getItem('storeDataLocal')) || {};
                 storeData[storageKey === 'storeLogo' ? 'logo' : 'background'] = imageUrl;
                 localStorage.setItem('storeDataLocal', JSON.stringify(storeData));
                 
+                alert('Imagem carregada com sucesso!');
+                
             } catch (error) {
-                alert('Erro ao enviar imagem. Tente novamente.');
+                alert(`Erro no upload: ${error.message}`);
             }
         }
-
-        // Handlers de drag and drop
-        uploadElement.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            uploadElement.style.border = '2px dashed #5A4ABC';
-        });
-
-        uploadElement.addEventListener('dragleave', () => {
-            uploadElement.style.border = 'none';
-        });
-
+        // Handlers de Drag & Drop
+        uploadElement.addEventListener('dragover', (e) => e.preventDefault());
         uploadElement.addEventListener('drop', (e) => {
             e.preventDefault();
-            uploadElement.style.border = 'none';
             if (e.dataTransfer.files[0]) processFile(e.dataTransfer.files[0]);
         });
 
-        // Handler de clique
+        // Handler de Clique
         uploadElement.addEventListener('click', () => {
             const input = document.createElement('input');
             input.type = 'file';
@@ -230,7 +217,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Funções auxiliares restantes (mantidas iguais)
     function updateWelcomeMessage(storeName) {
         const userName = userData.name || userData.email || 'usuário';
         elements.welcomeLabel.innerHTML = storeName 
