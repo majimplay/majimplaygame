@@ -103,7 +103,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (!userData?.sub) {
         alert('Sessão expirada ou não autenticado. Redirecionando para login...');
-        window.location.href = 'login.html'; // Adapte para sua página de login
+     
         return;
     }
 
@@ -130,7 +130,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (!currentUserData?.sub) {
             alert('Sessão expirada. Faça login novamente.');
-            window.location.href = 'login.html'; // Adapte
+
             return;
         }
 
