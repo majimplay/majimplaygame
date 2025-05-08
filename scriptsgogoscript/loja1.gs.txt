@@ -1,0 +1,115 @@
+/**
+ * Função acionada quando uma requisição HTTP POST é enviada para a URL do script.
+ * Ela recebe os dados da loja enviados pelo JavaScript do cliente e os adiciona
+ * a uma Planilha Google.
+ *
+ * @param {Object} e O objeto de evento que contém os parâmetros da requisição.
+ * e.postData.contents contém os dados enviados no corpo do POST.
+ * @return {ContentService.TextOutput} Uma resposta JSON indicando sucesso ou falha.
+ */
+function doPost(e) {
+  try {
+    // Tenta obter a planilha ativa e a aba específica.
+    // Mude "DadosLoja" se o nome da sua aba for diferente.
+    var nomeDaAba = "DadosLoja";
+    var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = spreadsheet.getSheetByName(nomeDaAba);
+
+    // Se a aba não existir, cria uma nova.
+    if (!sheet) {
+      sheet = spreadsheet.insertSheet(nomeDaAba);
+      // Adiciona cabeçalhos à nova aba (opcional, mas recomendado).
+      // Certifique-se de que a ordem corresponde aos dados que você está enviando.
+      sheet.appendRow([
+        "Timestamp",        // Data e hora do envio
+        "ID do Usuário",    // ID do usuário (do token JWT)
+        "Email do Usuário", // Email do usuário (do token JWT)
+        "Nome da Loja",
+        "CEP da Loja",
+        "URL do Logo",
+        "URL do Fundo"
+        // Adicione mais cabeçalhos aqui se você enviar mais dados do JavaScript
+      ]);
+    }
+
+    // Faz o parse do JSON enviado no corpo da requisição.
+    var data = JSON.parse(e.postData.contents);
+
+    // Adiciona uma nova linha com os dados recebidos.
+    // A ordem dos dados deve corresponder à ordem dos cabeçalhos definidos acima.
+    sheet.appendRow([
+      data.timestamp || new Date().toISOString(), // Usa o timestamp enviado ou cria um novo
+      data.userId || "N/A",                     // ID do usuário
+      data.userEmail || "N/A",                  // Email do usuário
+      data.storeName || "N/A",                  // Nome da loja
+      data.storeCep || "N/A",                   // CEP da loja
+      data.logoUrl || "N/A",                    // URL ou indicador do logo
+      data.backgroundUrl || "N/A"               // URL ou indicador do fundo
+      // Adicione mais data.campo aqui se necessário
+    ]);
+
+    // Retorna uma resposta de sucesso em formato JSON.
+    return ContentService
+      .createTextOutput(JSON.stringify({
+        "status": "success",
+        "message": "Dados recebidos e adicionados à planilha com sucesso!",
+        "dataReceived": data // Opcional: retorna os dados recebidos para confirmação
+      }))
+      .setMimeType(ContentService.MimeType.JSON);
+
+  } catch (error) {
+    // Loga o erro para depuração no console do Apps Script (Exibir > Registros).
+    console.error("Erro na função doPost: " + error.toString() + "\nStack: " + error.stack);
+    console.error("Dados recebidos (e.postData.contents): " + (e.postData ? e.postData.contents : "Nenhum dado no postData"));
+
+
+    // Retorna uma resposta de erro em formato JSON.
+    return ContentService
+      .createTextOutput(JSON.stringify({
+        "status": "error",
+        "message": "Ocorreu um erro ao processar a requisição: " + error.toString(),
+        "details": e.postData ? e.postData.contents : "Nenhum dado no postData"
+      }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+/**
+ * Função de teste para ser executada manualmente no editor do Apps Script.
+ * Isso ajuda a verificar se o script tem as permissões corretas para
+ * escrever na planilha e se a lógica de criação da aba/cabeçalhos funciona.
+ */
+function testarAdicaoDeLinha() {
+  try {
+    var nomeDaAba = "DadosLoja"; // Deve ser o mesmo nome usado em doPost
+    var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = spreadsheet.getSheetByName(nomeDaAba);
+
+    if (!sheet) {
+      sheet = spreadsheet.insertSheet(nomeDaAba);
+      sheet.appendRow([
+        "Timestamp", "ID do Usuário", "Email do Usuário", "Nome da Loja",
+        "CEP da Loja", "URL do Logo", "URL do Fundo"
+      ]);
+      Logger.log("Aba '" + nomeDaAba + "' criada com cabeçalhos.");
+    }
+
+    // Adiciona uma linha de teste
+    sheet.appendRow([
+      new Date().toISOString(),
+      "usuarioTeste123",
+      "teste@exemplo.com",
+      "Minha Loja de Teste",
+      "12345-000",
+      "http://example.com/logo.png",
+      "http://example.com/background.jpg"
+    ]);
+    Logger.log("Linha de teste adicionada à aba '" + nomeDaAba + "'.");
+    SpreadsheetApp.flush(); // Garante que as alterações sejam salvas imediatamente
+    Browser.msgBox("Sucesso", "Linha de teste adicionada com sucesso à aba '" + nomeDaAba + "'.", Browser.Buttons.OK);
+
+  } catch (error) {
+    Logger.log("Erro em testarAdicaoDeLinha: " + error.toString());
+    Browser.msgBox("Erro", "Falha ao adicionar linha de teste: " + error.toString(), Browser.Buttons.OK);
+  }
+}
