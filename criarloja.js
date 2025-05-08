@@ -21,7 +21,7 @@ function jwtDecode_local(token) {
         const currentTime = Date.now() / 1000;
         if (payload.exp && payload.exp < currentTime) {
             console.log('Token expirado (detectado no cliente):', new Date(payload.exp * 1000));
-            localStorage.removeItem('googleUserDataToken');
+            localStorage.removeItem('googleUserDataToken'); // Mantido para gerenciamento de sessão
             return null;
         }
 
@@ -50,7 +50,7 @@ async function uploadToImgBB(file, apiKey) {
         const data = await response.json();
         if (data.success) {
             console.log('ImgBB Upload Response:', data);
-            return data.data.url; // URL da imagem no ImgBB
+            return data.data.url;
         } else {
             console.error('Erro no upload para ImgBB:', data.error.message);
             alert(`Erro ao enviar imagem para o ImgBB: ${data.error.message}`);
@@ -67,13 +67,10 @@ async function uploadToImgBB(file, apiKey) {
 // Script para a página de criação de loja
 document.addEventListener('DOMContentLoaded', function() {
     // =====================================================================================
-    // IMPORTANTE: INSIRA A SUA API KEY DO IMGBB AQUI
-    // Obtenha sua chave em: https://api.imgbb.com/
-    const IMG_BB_API_KEY = '43ff22682bbe91ea89a32047a821bae8';
+    const IMG_BB_API_KEY = '43ff22682bbe91ea89a32047a821bae8'; // SUA API KEY AQUI
     // =====================================================================================
 
-
-    // Configurações compartilhadas com perfil.js
+    // Configurações compartilhadas
     const USER_DATA_KEY_FROM_SCRIPT = 'googleUserDataToken';
     const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw1boPWweXlVIQPXdyt9vBFFcDwsuo438W5cPWgGnQTdqaZwMMfqYB4-j_nqs78yl99/exec';
 
@@ -82,11 +79,11 @@ document.addEventListener('DOMContentLoaded', function() {
         storeNameInput: document.getElementById('store_name_input'),
         storeCepInput: document.getElementById('store_cep_input'),
         saveButton: document.getElementById('save_button'),
-        ordersLabel: document.querySelector('#orders_label .textstyle6'), // Seletor pode precisar de ajuste
+        ordersLabel: document.querySelector('#orders_label .textstyle6'),
         ordersButton: document.getElementById('orders_button'),
         productsButton: document.getElementById('products_button'),
-        logoUpload: document.getElementById('logo_upload_image'),       // Elemento <img> para o logo
-        backgroundUpload: document.getElementById('background_upload_image'), // Elemento <img> para o fundo
+        logoUpload: document.getElementById('logo_upload_image'),
+        backgroundUpload: document.getElementById('background_upload_image'),
         welcomeLabel: document.getElementById('welcome_label')
     };
 
@@ -103,7 +100,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (!userData?.sub) {
         alert('Sessão expirada ou não autenticado. Redirecionando para login...');
-     
         return;
     }
 
@@ -116,9 +112,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Event Listeners
     elements.saveButton.addEventListener('click', handleSave);
-    // Adapte os redirecionamentos conforme suas páginas:
-    // if(elements.ordersButton) elements.ordersButton.addEventListener('click', () => window.location.href = 'pedidos.html');
-    // if(elements.productsButton) elements.productsButton.addEventListener('click', () => window.location.href = 'produtosdaloja.html');
 
     // Configuração do upload de imagens
     setupImageUpload('logo_upload_image', 'storeLogo');
@@ -130,11 +123,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (!currentUserData?.sub) {
             alert('Sessão expirada. Faça login novamente.');
-
             return;
         }
 
-        // Pega as URLs dos atributos 'data-imgbb-url' ou o src como fallback
+        // Obtém URLs das imagens
         const logoUrlToSend = elements.logoUpload.dataset.imgbbUrl || elements.logoUpload.src;
         const backgroundUrlToSend = elements.backgroundUpload.dataset.imgbbUrl || elements.backgroundUpload.src;
 
@@ -143,43 +135,31 @@ document.addEventListener('DOMContentLoaded', function() {
             userEmail: currentUserData.email || '',
             storeName: elements.storeNameInput.value.replace('nome =', '').trim(),
             storeCep: elements.storeCepInput.value.replace('cep =', '').trim(),
-            logoUrl: logoUrlToSend, // URL do ImgBB ou fallback
-            backgroundUrl: backgroundUrlToSend, // URL do ImgBB ou fallback
-          //  timestamp: new Date().toISOString()
+            logoUrl: logoUrlToSend,
+            backgroundUrl: backgroundUrlToSend
         };
 
-        // Salvar localmente com as URLs corretas
-        localStorage.setItem('storeDataLocal', JSON.stringify({
-            name: storeData.storeName,
-            cep: storeData.storeCep,
-            logo: logoUrlToSend,
-            background: backgroundUrlToSend
-            // Se você tiver 'orders' no localStorage, precisa preservar
-        }));
-
         updateWelcomeMessage(storeData.storeName);
-        checkOrders(); // Se esta função existir e for relevante
+        checkOrders();
         sendDataToSheet(storeData);
     }
 
-   async function sendDataToSheet(data) {
-    console.log("Enviando para Google Sheet:", data);
-    try {
-        const response = await fetch(GOOGLE_SCRIPT_URL, {
-            method: 'POST',
-            mode: 'no-cors', // Mantido como no-cors, ciente das limitações
-            headers: {'Content-Type': 'application/json'}, // Este header pode não ser enviado em no-cors
-            body: JSON.stringify({ action: 'saveStore', ...data }) // Adicionando uma ação para o Apps Script
-        });
-        
-        console.log('Requisição enviada para Google Sheet (resposta opaca devido ao no-cors)');
-        alert('Dados da loja enviados! Verifique sua planilha.'); 
-         console.log('Dados enviados:', data);
-    } catch (error) {
-        console.error('Erro ao salvar dados na planilha:', error);
-        alert('Falha ao enviar dados para a planilha. Verifique sua conexão e a configuração do Google Apps Script.');
+    async function sendDataToSheet(data) {
+        console.log("Enviando para Google Sheet:", data);
+        try {
+            const response = await fetch(GOOGLE_SCRIPT_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ action: 'saveStore', ...data })
+            });
+            console.log('Requisição enviada para Google Sheet');
+            alert('Dados da loja enviados! Verifique sua planilha.'); 
+        } catch (error) {
+            console.error('Erro ao salvar dados na planilha:', error);
+            alert('Falha ao enviar dados para a planilha.');
+        }
     }
-}
 
     function updateWelcomeMessage(storeName) {
         if (!elements.welcomeLabel) return;
@@ -190,116 +170,73 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function checkOrders() {
-        // Implemente ou ajuste conforme sua lógica de pedidos
         if (!elements.ordersLabel) return;
-        const storeDataLocal = JSON.parse(localStorage.getItem('storeDataLocal')) || {};
-        const ordersCount = storeDataLocal.orders ? storeDataLocal.orders.length : 0;
-        
-        elements.ordersLabel.textContent = `Você tem (${ordersCount}) pedidos`;
+        elements.ordersLabel.textContent = 'Você tem (0) pedidos'; // Valor estático
     }
 
     function loadStoreData() {
-        const storeData = JSON.parse(localStorage.getItem('storeDataLocal')) || {};
-        
-        if (storeData.name) {
-            elements.storeNameInput.value = `nome = ${storeData.name}`;
-        }
-        
-        if (storeData.cep) {
-            elements.storeCepInput.value = `cep = ${storeData.cep}`;
-        }
-        
-        // Carrega imagens e define data attributes
-        if (storeData.logo && !storeData.logo.includes('drop_here.png')) {
-            elements.logoUpload.src = storeData.logo;
-            elements.logoUpload.dataset.imgbbUrl = storeData.logo; // Assume que o que está salvo é a URL final
-        }
-        
-        if (storeData.background && !storeData.background.includes('drop_here.png')) {
-            elements.backgroundUpload.src = storeData.background;
-            elements.backgroundUpload.dataset.imgbbUrl = storeData.background; // Assume que o que está salvo é a URL final
-        }
-        
-        updateWelcomeMessage(storeData.name);
+        // Reseta todos os campos para valores padrão
+        elements.storeNameInput.value = 'nome = ';
+        elements.storeCepInput.value = 'cep = ';
+        elements.logoUpload.src = 'imagens/drop_here.png';
+        elements.backgroundUpload.src = 'imagens/drop_here.png';
+        updateWelcomeMessage('');
         checkOrders();
     }
 
     function setupImageUpload(elementId, storageKey) {
-        const uploadElement = document.getElementById(elementId); // Este é o elemento <img>
+        const uploadElement = document.getElementById(elementId);
         if (!uploadElement) {
             console.error(`Elemento de upload ${elementId} não encontrado.`);
             return;
         }
 
-        // Função interna para processar o arquivo
         async function processFile(file) {
             if (!file.type.startsWith('image/')) {
                 alert('Selecione apenas arquivos de imagem!');
                 return;
             }
 
-            // 1. Mostrar preview local com Base64
             const reader = new FileReader();
             reader.onload = async (e) => {
-                uploadElement.src = e.target.result; // Mostra o preview local imediatamente
+                uploadElement.src = e.target.result;
 
-                // 2. Fazer upload para ImgBB
                 if (!IMG_BB_API_KEY || IMG_BB_API_KEY === 'SUA_CHAVE_API_IMG_BB_AQUI') {
-                    alert('IMPORTANTE: A API Key do ImgBB não está configurada no script (criarloja.js).\nA imagem será exibida localmente, mas não será enviada para o ImgBB nem salva corretamente na planilha.');
-                    // Armazenar base64 como fallback se não houver API key ou falha
-                    uploadElement.dataset.imgbbUrl = e.target.result; // Salva base64 temporariamente
-                    // Atualizar localStorage com base64 como fallback
-                    const storeData = JSON.parse(localStorage.getItem('storeDataLocal')) || {};
-                    storeData[storageKey === 'storeLogo' ? 'logo' : 'background'] = e.target.result;
-                    localStorage.setItem('storeDataLocal', JSON.stringify(storeData));
+                    alert('API Key do ImgBB não configurada!');
+                    uploadElement.dataset.imgbbUrl = e.target.result;
                     return;
                 }
                 
-                // Mostra alguma indicação de carregamento
-                const originalBorderStyle = uploadElement.style.border;
-                uploadElement.style.border = '3px dashed #007bff'; // Azul para indicar processamento
+                uploadElement.style.border = '3px dashed #007bff';
                 uploadElement.title = 'Enviando imagem...';
 
                 const imgbbUrl = await uploadToImgBB(file, IMG_BB_API_KEY);
                 
-                uploadElement.style.border = originalBorderStyle; // Restaura a borda
-                uploadElement.title = ''; // Limpa o title
+                uploadElement.style.border = '';
+                uploadElement.title = '';
 
                 if (imgbbUrl) {
-                    uploadElement.dataset.imgbbUrl = imgbbUrl; // Armazena a URL do ImgBB no dataset
-                    uploadElement.src = imgbbUrl; // Atualiza o src da imagem para a URL do ImgBB (opcional, mas bom para consistência)
-                    console.log(`Imagem enviada para ImgBB (${storageKey}): ${imgbbUrl}`);
-                    
-                    // Atualizar localStorage com a URL do ImgBB
-                    const storeData = JSON.parse(localStorage.getItem('storeDataLocal')) || {};
-                    storeData[storageKey === 'storeLogo' ? 'logo' : 'background'] = imgbbUrl;
-                    localStorage.setItem('storeDataLocal', JSON.stringify(storeData));
-                    alert(`Imagem (${storageKey}) enviada para o ImgBB com sucesso!`);
+                    uploadElement.dataset.imgbbUrl = imgbbUrl;
+                    uploadElement.src = imgbbUrl;
+                    alert('Imagem enviada com sucesso!');
                 } else {
-                    // Se o upload falhar, o preview local (base64) já está no src.
-                    // Mantém o base64 como fallback no dataset também.
                     uploadElement.dataset.imgbbUrl = e.target.result;
-                    alert(`Falha ao enviar imagem (${storageKey}) para ImgBB. A imagem local (base64) será usada se você salvar agora.`);
-                    // O localStorage já teria sido atualizado com base64 se a API key não estivesse presente,
-                    // ou podemos forçar aqui se quisermos.
-                    const storeData = JSON.parse(localStorage.getItem('storeDataLocal')) || {};
-                    storeData[storageKey === 'storeLogo' ? 'logo' : 'background'] = e.target.result; // Garante fallback no localStorage
-                    localStorage.setItem('storeDataLocal', JSON.stringify(storeData));
+                    alert('Falha no upload. Usando imagem local temporária.');
                 }
             };
-            reader.readAsDataURL(file); // Inicia a leitura para o preview local
+            reader.readAsDataURL(file);
         }
 
-        // Handlers de drag and drop no elemento <img>
+        // Handlers de drag and drop e clique
         uploadElement.addEventListener('dragover', (e) => {
             e.preventDefault();
             uploadElement.style.opacity = '0.7';
-            uploadElement.style.border = '2px dashed #5A4ABC'; // Feedback visual
+            uploadElement.style.border = '2px dashed #5A4ABC';
         });
 
         uploadElement.addEventListener('dragleave', () => {
             uploadElement.style.opacity = '1';
-            uploadElement.style.border = 'none'; // Limpa feedback
+            uploadElement.style.border = 'none';
         });
 
         uploadElement.addEventListener('drop', async (e) => {
@@ -311,17 +248,16 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
-        // Handler de clique no elemento <img> para abrir o seletor de arquivo
         uploadElement.addEventListener('click', () => {
             const input = document.createElement('input');
             input.type = 'file';
-            input.accept = 'image/*'; // Aceita apenas imagens
+            input.accept = 'image/*';
             input.onchange = async (e) => {
                 if (e.target.files && e.target.files[0]) {
                    await processFile(e.target.files[0]);
                 }
             };
-            input.click(); // Abre o diálogo de seleção de arquivo
+            input.click();
         });
     }
 });
