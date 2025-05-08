@@ -145,7 +145,7 @@ document.addEventListener('DOMContentLoaded', function() {
             storeCep: elements.storeCepInput.value.replace('cep =', '').trim(),
             logoUrl: logoUrlToSend, // URL do ImgBB ou fallback
             backgroundUrl: backgroundUrlToSend, // URL do ImgBB ou fallback
-            timestamp: new Date().toISOString()
+          //  timestamp: new Date().toISOString()
         };
 
         // Salvar localmente com as URLs corretas
