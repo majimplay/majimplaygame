@@ -178,8 +178,8 @@ document.addEventListener('DOMContentLoaded', function() {
         // Reseta todos os campos para valores padrão
         elements.storeNameInput.value = 'nome = ';
         elements.storeCepInput.value = 'cep = ';
-        elements.logoUpload.src = 'imagens/drop_here.png';
-        elements.backgroundUpload.src = 'imagens/drop_here.png';
+        elements.logoUpload.src = 'rc_images/drop_here.png';
+        elements.backgroundUpload.src = 'rc_images/drop_here.png';
         updateWelcomeMessage('');
         checkOrders();
     }
