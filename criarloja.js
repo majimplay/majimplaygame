@@ -69,7 +69,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // =====================================================================================
     // IMPORTANTE: INSIRA A SUA API KEY DO IMGBB AQUI
     // Obtenha sua chave em: https://api.imgbb.com/
-    const IMG_BB_API_KEY = 'SUA_CHAVE_API_IMG_BB_AQUI';
+    const IMG_BB_API_KEY = '43ff22682bbe91ea89a32047a821bae8';
     // =====================================================================================
 
 
