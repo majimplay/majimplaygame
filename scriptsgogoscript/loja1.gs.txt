@@ -17,7 +17,7 @@ const SHEET_NAME = 'Loja'; // <-- VERIFIQUE E AJUSTE SE NECESSÁRIO
  * Exemplo de configuração:
  * const FIELD_TO_COLUMN_MAP = {
  * 'nome': 'Nome Completo', // O campo 'nome' do JSON vai para a coluna 'Nome Completo'
- * 'email': 'Endereço de Email', // O campo 'email' do JSON vai para a coluna 'Endereço de Email'
+ * 'email': 'Endereço de Email', // O campo 'email' do JSON vai para o Endereço de Email
  * 'telefone': 'Telefone',
  * // Adicione mais mapeamentos conforme necessário
  * };
@@ -25,12 +25,14 @@ const SHEET_NAME = 'Loja'; // <-- VERIFIQUE E AJUSTE SE NECESSÁRIO
  * Certifique-se de que os nomes das colunas aqui CORRESPONDAM EXATAMENTE aos cabeçalhos na sua planilha.
  */
 const FIELD_TO_COLUMN_MAP = {
- userId: 'ID',
- userEmail: 'emeio',
- storeName: 'loja',
- storeCep: 'Cep',
- logoUrl: 'logoUrl',
- backgroundUrl: 'backgroundUrl'
+ userId: 'ID', // Mapeia o campo 'userId' do HTML para a coluna 'ID' na planilha
+ userEmail: 'emeio', // Mapeia o campo 'userEmail' para a coluna 'emeio'
+ storeName: 'loja', // Mapeia o campo 'storeName' para a coluna 'loja'
+ storeCep: 'Cep', // Mapeia o campo 'storeCep' para a coluna 'Cep'
+ logoUrl: 'logoUrl', // Mapeia o campo 'logoUrl' para a coluna 'logoUrl'
+ backgroundUrl: 'backgroundUrl', // Mapeia o campo 'backgroundUrl' para a coluna 'backgroundUrl'
+ // Adicione aqui o mapeamento para a coluna de contagem de pedidos, se existir
+ // orderCount: 'Contagem de Pedidos' // Exemplo: Se tiver uma coluna chamada 'Contagem de Pedidos'
 };
 
 /**
@@ -41,6 +43,7 @@ const TIMESTAMP_COLUMN_NAME = 'null'; // <-- AJUSTE se quiser um nome diferente 
 
 /**
  * Função principal executada ao receber uma requisição POST.
+ * Utilizada para salvar ou atualizar dados da loja.
  * @param {Object} e - Objeto de evento do Apps Script contendo os dados da requisição.
  */
 function doPost(e) {
@@ -81,180 +84,244 @@ function doPost(e) {
     }
 
 
-    // 4. Preparar a Linha de Dados para Inserção
-    const newRow = Array(headers.length).fill(''); // Cria um array com o tamanho dos cabeçalhos, preenchido com vazio
+    // 4. Preparar a Linha de Dados para Inserção/Atualização
+    // Não criamos uma newRow completa aqui, pois vamos atualizar uma existente ou criar uma com base nos dados mapeados.
     const timestamp = new Date();
     let dataFound = false; // Flag para verificar se algum dado foi mapeado
 
-    // Mapeia os dados recebidos para as colunas corretas
-    for (const fieldName in FIELD_TO_COLUMN_MAP) {
-      if (data.hasOwnProperty(fieldName)) {
-        const columnName = FIELD_TO_COLUMN_MAP[fieldName];
-        const columnIndex = headers.indexOf(columnName);
 
-        if (columnIndex !== -1) {
-          newRow[columnIndex] = data[fieldName]; // Coloca o dado na posição correta do array
-          dataFound = true;
-        } else {
-          // Loga um aviso se uma coluna mapeada não for encontrada no cabeçalho
-          Logger.log(`Aviso: A coluna "${columnName}" (mapeada para o campo "${fieldName}") não foi encontrada nos cabeçalhos da planilha: [${headers.join(', ')}]`);
-        }
-      }
-    }
-
-    // Adiciona o Timestamp se configurado e a coluna existir
-    if (TIMESTAMP_COLUMN_NAME) {
-        const timestampColumnIndex = headers.indexOf(TIMESTAMP_COLUMN_NAME);
-        if (timestampColumnIndex !== -1) {
-            newRow[timestampColumnIndex] = timestamp;
-        } else {
-            Logger.log(`Aviso: A coluna de timestamp "${TIMESTAMP_COLUMN_NAME}" não foi encontrada nos cabeçalhos.`);
-            // Opcional: Poderia adicionar o timestamp na primeira coluna vazia ou lançar erro
-        }
-    }
-
-    // Verifica se algum dado útil foi encontrado para adicionar
-    if (!dataFound && !(TIMESTAMP_COLUMN_NAME && headers.includes(TIMESTAMP_COLUMN_NAME))) {
-        throw new Error("Nenhum dos campos recebidos corresponde aos campos mapeados ou a coluna de timestamp não está configurada/encontrada.");
-    }
-
- // 5. Verificar ID Existente e Atualizar/Adicionar
+    // 5. Verificar ID Existente e Atualizar/Adicionar
     const idColumnName = FIELD_TO_COLUMN_MAP.userId;
     const idColumnIndex = headers.indexOf(idColumnName);
 
     if (idColumnIndex === -1) {
-      throw new Error(`Coluna '${idColumnName}' não encontrada.`);
+      throw new Error(`Coluna '${idColumnName}' (mapeada para userId) não encontrada nos cabeçalhos.`);
     }
 
     const incomingId = data.userId.toString(); // Garante string para comparação
     const dataValues = sheet.getDataRange().getValues();
     let existingRowIndex = -1;
 
+    // Percorre as linhas existentes (ignorando o cabeçalho na linha 0)
     for (let i = 1; i < dataValues.length; i++) {
-      const rowId = dataValues[i][idColumnIndex]?.toString();
+      const rowId = dataValues[i][idColumnIndex]?.toString(); // Pega o valor na coluna de ID
       if (rowId === incomingId) {
-        existingRowIndex = i;
+        existingRowIndex = i; // Encontrou a linha existente
         break;
       }
     }
 
     if (existingRowIndex !== -1) {
       // Atualizar linha existente
-      const existingRow = [...dataValues[existingRowIndex]]; // Copia a linha
+      const existingRow = [...dataValues[existingRowIndex]]; // Copia a linha existente para modificação
 
       for (const fieldName in FIELD_TO_COLUMN_MAP) {
-        if (data[fieldName] !== undefined) {
+        // Verifica se o campo existe nos dados recebidos (data) e se não é undefined/null
+        if (data.hasOwnProperty(fieldName) && data[fieldName] !== undefined && data[fieldName] !== null) {
           const columnName = FIELD_TO_COLUMN_MAP[fieldName];
           const columnIndex = headers.indexOf(columnName);
           if (columnIndex !== -1) {
-            existingRow[columnIndex] = data[fieldName];
+            existingRow[columnIndex] = data[fieldName]; // Atualiza o valor na cópia da linha
+            dataFound = true; // Marca que pelo menos um dado foi atualizado
+          } else {
+            Logger.log(`Aviso: A coluna "${columnName}" (mapeada para o campo "${fieldName}") não foi encontrada nos cabeçalhos da planilha para atualização.`);
           }
         }
       }
 
+      // Adiciona/Atualiza o Timestamp se configurado e a coluna existir
       if (TIMESTAMP_COLUMN_NAME) {
         const timestampColumnIndex = headers.indexOf(TIMESTAMP_COLUMN_NAME);
         if (timestampColumnIndex !== -1) {
           existingRow[timestampColumnIndex] = timestamp;
+        } else {
+            Logger.log(`Aviso: A coluna de timestamp "${TIMESTAMP_COLUMN_NAME}" não foi encontrada nos cabeçalhos para atualização.`);
         }
       }
 
-      sheet.getRange(existingRowIndex + 1, 1, 1, existingRow.length)
-        .setValues([existingRow]);
+      // Verifica se houve alguma atualização antes de escrever na planilha
+      if (dataFound || (TIMESTAMP_COLUMN_NAME && headers.includes(TIMESTAMP_COLUMN_NAME))) {
+           sheet.getRange(existingRowIndex + 1, 1, 1, existingRow.length)
+             .setValues([existingRow]); // Escreve a linha atualizada de volta na planilha
+           response = {
+             status: 'success',
+             message: 'Dados atualizados com sucesso.',
+             updatedRow: existingRow
+           };
+      } else {
+           // Se nenhum dado mapeado foi recebido e a coluna de timestamp não foi atualizada/encontrada,
+           // considera que não há nada para atualizar.
+           response = {
+             status: 'success',
+             message: 'Nenhum dado novo fornecido para atualização.',
+             existingRow: existingRow // Opcional: retorna a linha existente
+           };
+      }
 
-      response = {
-        status: 'success',
-        message: 'Dados atualizados com sucesso.',
-        updatedRow: existingRow
-      };
+
     } else {
       // Adicionar nova linha
-      sheet.appendRow(newRow);
-      response = {
-        status: 'success',
-        message: 'Dados adicionados com sucesso.',
-        addedRow: newRow
-      };
+      const newRow = Array(headers.length).fill(''); // Cria uma nova linha vazia
+
+      for (const fieldName in FIELD_TO_COLUMN_MAP) {
+        // Verifica se o campo existe nos dados recebidos (data) e se não é undefined/null
+        if (data.hasOwnProperty(fieldName) && data[fieldName] !== undefined && data[fieldName] !== null) {
+          const columnName = FIELD_TO_COLUMN_MAP[fieldName];
+          const columnIndex = headers.indexOf(columnName);
+          if (columnIndex !== -1) {
+            newRow[columnIndex] = data[fieldName]; // Preenche a nova linha com os dados
+            dataFound = true; // Marca que pelo menos um dado foi adicionado
+          } else {
+             Logger.log(`Aviso: A coluna "${columnName}" (mapeada para o campo "${fieldName}") não foi encontrada nos cabeçalhos da planilha para nova linha.`);
+          }
+        }
+      }
+
+      // Adiciona o Timestamp se configurado e a coluna existir
+      if (TIMESTAMP_COLUMN_NAME) {
+          const timestampColumnIndex = headers.indexOf(TIMESTAMP_COLUMN_NAME);
+          if (timestampColumnIndex !== -1) {
+              newRow[timestampColumnIndex] = timestamp;
+          } else {
+              Logger.log(`Aviso: A coluna de timestamp "${TIMESTAMP_COLUMN_NAME}" não foi encontrada nos cabeçalhos para nova linha.`);
+          }
+      }
+
+       // Verifica se algum dado útil foi encontrado para adicionar (além do timestamp)
+       // Ou se apenas o timestamp foi configurado e sua coluna existe
+      if (dataFound || (TIMESTAMP_COLUMN_NAME && headers.includes(TIMESTAMP_COLUMN_NAME))) {
+           sheet.appendRow(newRow); // Adiciona a nova linha
+           response = {
+             status: 'success',
+             message: 'Dados adicionados com sucesso.',
+             addedRow: newRow
+           };
+      } else {
+           // Se nenhum dado mapeado foi recebido e a coluna de timestamp não foi configurada/encontrada,
+           // considera que não há nada para adicionar.
+            throw new Error("Nenhum dos campos recebidos corresponde aos campos mapeados ou a coluna de timestamp não está configurada/encontrada para adicionar uma nova linha.");
+      }
+
     }
 
   } catch (error) {
-    Logger.log(`Erro: ${error.message}`);
+    Logger.log(`Erro em doPost: ${error.message}`);
     response = {
       status: 'error',
       message: error.message
     };
   }
 
+  // Configura a resposta com o cabeçalho CORS
   return ContentService.createTextOutput(JSON.stringify(response))
-    .setMimeType(ContentService.MimeType.JSON);
+    .setMimeType(ContentService.MimeType.JSON)
+    .setHeader('Access-Control-Allow-Origin', '*'); // Permite requisições de qualquer origem. Para maior segurança, substitua '*' pela origem específica do seu site (ex: 'https://seu-site.com').
 }
 
-// --- FUNÇÕES AUXILIARES E DE TESTE (Opcional) ---
 
 /**
- * Função de teste para verificar a configuração e adição de dados.
- * Execute esta função manualmente no editor do Apps Script.
+ * Função principal executada ao receber uma requisição GET.
+ * Utilizada para buscar dados da loja.
+ * @param {Object} e - Objeto de evento do Apps Script contendo os parâmetros da requisição.
  */
-function testAppendData() {
+function doGet(e) {
+  let ss, sheet, headers, response;
+
   try {
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    const sheet = ss.getSheetByName(SHEET_NAME);
+    // 1. Acessar a Planilha e a Aba
+    ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    sheet = ss.getSheetByName(SHEET_NAME);
     if (!sheet) {
-      Logger.log(`Erro no teste: Aba "${SHEET_NAME}" não encontrada.`);
-      return;
+      throw new Error(`Aba "${SHEET_NAME}" não encontrada na planilha ID: ${SPREADSHEET_ID}.`);
     }
 
-    // Simula dados recebidos
-    const testData = {
-      'nome': 'Teste Automatizado ' + new Date().toLocaleTimeString(),
-      // Adicione outros campos de teste se você mapeou mais coisas
-      // 'email': 'teste@exemplo.com',
-      // 'cidade': 'Cidade Teste'
-    };
-
+    // 2. Ler os Cabeçalhos
     const headerRange = sheet.getRange(1, 1, 1, sheet.getLastColumn());
-    const headers = headerRange.getValues()[0].map(header => String(header).trim());
+    headers = headerRange.getValues()[0].map(header => String(header).trim());
 
     if (headers.length === 0 || headers.every(h => h === '')) {
-        Logger.log(`Erro no teste: A aba "${SHEET_NAME}" parece não ter cabeçalhos.`);
-        return;
+        throw new Error(`A aba "${SHEET_NAME}" parece não ter cabeçalhos na primeira linha.`);
     }
 
-    const newRow = Array(headers.length).fill('');
-    const timestamp = new Date();
-    let dataFound = false;
+    // 3. Obter parâmetros da requisição GET
+    const params = e.parameter;
+    const action = params.action;
+    const userId = params.userId;
 
-    for (const fieldName in FIELD_TO_COLUMN_MAP) {
-      if (testData.hasOwnProperty(fieldName)) {
-        const columnName = FIELD_TO_COLUMN_MAP[fieldName];
-        const columnIndex = headers.indexOf(columnName);
-        if (columnIndex !== -1) {
-          newRow[columnIndex] = testData[fieldName];
-          dataFound = true;
-        } else {
-           Logger.log(`Aviso no teste: Coluna "${columnName}" não encontrada.`);
+    // Validar ação e userId
+    if (!action || action !== 'getStore') {
+        throw new Error("Ação inválida ou faltando. Use action=getStore.");
+    }
+    if (!userId) {
+        throw new Error("Parâmetro 'userId' é obrigatório para getStore.");
+    }
+
+    // 4. Encontrar a coluna de ID
+    const idColumnName = FIELD_TO_COLUMN_MAP.userId;
+    const idColumnIndex = headers.indexOf(idColumnName);
+
+    if (idColumnIndex === -1) {
+      throw new Error(`Coluna '${idColumnName}' (mapeada para userId) não encontrada nos cabeçalhos.`);
+    }
+
+    // 5. Buscar a linha correspondente ao userId
+    const dataValues = sheet.getDataRange().getValues();
+    let storeData = null; // Objeto para armazenar os dados da loja encontrados
+
+    // Percorre as linhas (ignorando o cabeçalho)
+    for (let i = 1; i < dataValues.length; i++) {
+      const row = dataValues[i];
+      const rowId = row[idColumnIndex]?.toString(); // Pega o valor na coluna de ID
+
+      if (rowId === userId) {
+        // Encontrou a linha do usuário, extrai os dados
+        storeData = {};
+        for (const fieldName in FIELD_TO_COLUMN_MAP) {
+            const columnName = FIELD_TO_COLUMN_MAP[fieldName];
+            const columnIndex = headers.indexOf(columnName);
+            if (columnIndex !== -1) {
+                storeData[fieldName] = row[columnIndex]; // Adiciona o dado ao objeto storeData
+            } else {
+                 Logger.log(`Aviso: A coluna "${columnName}" (mapeada para o campo "${fieldName}") não foi encontrada nos cabeçalhos ao buscar dados da loja.`);
+                 storeData[fieldName] = null; // Define como null se a coluna não existir
+            }
         }
+        // Adiciona a contagem de pedidos (assumindo 0 por padrão ou buscando de outra forma se necessário)
+        // Se você tiver uma coluna para contagem de pedidos mapeada em FIELD_TO_COLUMN_MAP,
+        // ela já será incluída no loop acima. Se não, pode adicionar aqui.
+        // Exemplo: storeData.orderCount = storeData.orderCount || 0;
+        // Para este exemplo, vamos garantir que orderCount esteja presente, mesmo que 0
+        if (typeof storeData.orderCount === 'undefined') {
+             storeData.orderCount = 0; // Valor padrão se a coluna não estiver mapeada/encontrada
+        }
+
+
+        break; // Encontrou a loja, pode sair do loop
       }
     }
 
-     if (TIMESTAMP_COLUMN_NAME) {
-        const timestampColumnIndex = headers.indexOf(TIMESTAMP_COLUMN_NAME);
-        if (timestampColumnIndex !== -1) {
-            newRow[timestampColumnIndex] = timestamp;
-        } else {
-             Logger.log(`Aviso no teste: Coluna de timestamp "${TIMESTAMP_COLUMN_NAME}" não encontrada.`);
-        }
+    // 6. Preparar a resposta
+    if (storeData) {
+      response = {
+        status: 'success',
+        data: storeData
+      };
+    } else {
+      response = {
+        status: 'not_found',
+        message: 'Nenhuma loja encontrada para este usuário.'
+      };
     }
-
-    if (!dataFound && !(TIMESTAMP_COLUMN_NAME && headers.includes(TIMESTAMP_COLUMN_NAME))) {
-       Logger.log("Erro no teste: Nenhum dado de teste foi mapeado para colunas existentes.");
-       return;
-    }
-
-    sheet.appendRow(newRow);
-    Logger.log(`Linha de teste adicionada com sucesso: [${newRow.join(', ')}]`);
 
   } catch (error) {
-    Logger.log(`Erro durante o teste: ${error.message}\nStack: ${error.stack}`);
+    Logger.log(`Erro em doGet: ${error.message}`);
+    response = {
+      status: 'error',
+      message: error.message
+    };
   }
+
+  // Configura a resposta com o cabeçalho CORS e tipo JSON
+  return ContentService.createTextOutput(JSON.stringify(response))
+    .setMimeType(ContentService.MimeType.JSON); 
 }
