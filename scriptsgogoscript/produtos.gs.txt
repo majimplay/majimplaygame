@@ -21,7 +21,8 @@ const PRODUCT_ATTRIBUTES_MAP = {
   'PESO': 'PESO',
   'ALTURA': 'ALTURA',
   'LARGURA': 'LARGURA',
-  'COMPRIMENTO': 'COMPRIMENTO'
+  'COMPRIMENTO': 'COMPRIMENTO',
+  'IMAGENS': 'IMAGENS'
   // Adicione outros atributos do produto e seus respectivos nomes de coluna aqui:
   // 'DESCRICAO': 'Descrição Detalhada',
   // 'COR': 'Cor do Produto',
