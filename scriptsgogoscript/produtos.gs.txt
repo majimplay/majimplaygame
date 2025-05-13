@@ -1,147 +1,362 @@
-/**
- * ID da sua planilha Google.
- * Encontre na URL: https://docs.google.com/spreadsheets/d/ID_DA_PLANILHA/edit
- */
-const SPREADSHEET_ID = '1EYUPZjfdnPJz9tI9yJFN1cVoiy9Fs3HABqFZFaz4r2A'; // Substitua pelo seu ID
+// --- CONFIGURAÇÕES GLOBAIS ---
+const SPREADSHEET_ID = '1EYUPZjfdnPJz9tI9yJFN1cVoiy9Fs3HABqFZFaz4r2A'; // !!! SUBSTITUA PELO ID DA SUA PLANILHA !!!
+const SHEET_NAME = 'Produtos'; // Nome da aba da planilha onde os dados são armazenados
+
+// Nomes das colunas CHAVE. Certifique-se que estas colunas existem na sua planilha.
+// É crucial que a primeira linha da sua planilha contenha estes nomes como cabeçalhos.
+const PRODUCT_ID_COLUMN_NAME = 'ID_PRODUTO'; // Coluna para o ID único do produto
+const GOGOID_COLUMN_NAME = 'GOGOID';       // Coluna para o ID do usuário/grupo associado ao produto
 
 /**
- * Nome da página (aba) onde os dados serão salvos.
- */
-const SHEET_NAME = 'produto'; // <-- VERIFIQUE E AJUSTE SE NECESSÁRIO
-
-/**
- * Mapeamento dos campos recebidos no JSON para os nomes das colunas na planilha.
- * Chave: Nome do campo no JSON que você envia (ex: 'nome', 'email').
- * Valor: Nome EXATO da coluna na primeira linha (cabeçalho) da sua planilha (ex: 'Nome do Cliente', 'Email de Contato').
+ * Mapeamento dos campos do JSON de entrada (em `productData`) para os nomes das colunas na planilha.
+ * Chave: Nome do campo no JSON que você envia (ex: 'NOME').
+ * Valor: Nome EXATO da coluna na primeira linha (cabeçalho) da sua planilha (ex: 'Nome do Produto na Planilha').
  *
- * Exemplo de configuração:
- * const FIELD_TO_COLUMN_MAP = {
- * 'nome': 'Nome Completo', // O campo 'nome' do JSON vai para a coluna 'Nome Completo'
- * 'email': 'Endereço de Email', // O campo 'email' do JSON vai para a coluna 'Endereço de Email'
- * 'telefone': 'Telefone',
- * // Adicione mais mapeamentos conforme necessário
- * };
- *
- * Certifique-se de que os nomes das colunas aqui CORRESPONDAM EXATAMENTE aos cabeçalhos na sua planilha.
+ * NÃO inclua PRODUCT_ID_COLUMN_NAME ou GOGOID_COLUMN_NAME aqui, pois são tratados de forma especial.
+ * Este mapeamento é para os atributos ADICIONAIS do produto.
  */
-const FIELD_TO_COLUMN_MAP = {
-  action: 'action',
-  GOGOID: 'GOGOID',
-  NOME: 'NOME',
-  PRECO: 'PRECO',
-  PESO: 'PESO',
-  ALTURA: 'ALTURA',
-  LARGURA: 'LARGURA',
-  COMPRIMENTO: 'COMPRIMENTO',
+const PRODUCT_ATTRIBUTES_MAP = {
+  'NOME': 'NOME',             // Ex: campo 'NOME' no JSON vai para a coluna 'NOME' na planilha
+  'PRECO': 'PRECO',
+  'PESO': 'PESO',
+  'ALTURA': 'ALTURA',
+  'LARGURA': 'LARGURA',
+  'COMPRIMENTO': 'COMPRIMENTO'
+  // Adicione outros atributos do produto e seus respectivos nomes de coluna aqui:
+  // 'DESCRICAO': 'Descrição Detalhada',
+  // 'COR': 'Cor do Produto',
+  // 'SKU': 'SKU do Item',
 };
+// --- FIM DAS CONFIGURAÇÕES GLOBAIS ---
 
 /**
- * Nome da coluna onde o timestamp (data e hora do registro) será salvo.
- * Se não quiser um timestamp, deixe como null ou string vazia ('').
- */
-const TIMESTAMP_COLUMN_NAME = 'null'; // <-- AJUSTE se quiser um nome diferente ou desabilitar
-
-/**
- * Função principal executada ao receber uma requisição POST.
- * @param {Object} e - Objeto de evento do Apps Script contendo os dados da requisição.
+ * Função principal que lida com requisições POST.
+ * Espera um JSON no corpo da requisição com um campo "action" e outros dados dependendo da ação.
+ * @param {Object} e - O objeto de evento do Apps Script contendo os dados da requisição.
+ * @return {ContentService.TextOutput} - Uma resposta JSON.
  */
 function doPost(e) {
-  let ss, sheet, headers, response;
-
+  let responsePayload = {};
   try {
-    // Validação básica da requisição
     if (!e || !e.postData || !e.postData.contents) {
-      throw new Error("Requisição inválida ou sem dados.");
+      throw new Error("Requisição inválida ou sem dados (e.postData.contents está vazio).");
+    }
+    const requestData = JSON.parse(e.postData.contents);
+    const action = requestData.action;
+
+    if (!action) {
+      throw new Error("A propriedade 'action' é obrigatória no JSON da requisição.");
     }
 
-    // 1. Acessar a Planilha e a Aba
-    ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    sheet = ss.getSheetByName(SHEET_NAME);
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const sheet = ss.getSheetByName(SHEET_NAME);
     if (!sheet) {
-      throw new Error(`Aba "${SHEET_NAME}" não encontrada na planilha ID: ${SPREADSHEET_ID}.`);
+      throw new Error(`A aba (planilha) "${SHEET_NAME}" não foi encontrada no Spreadsheet ID: ${SPREADSHEET_ID}.`);
     }
 
-    // 2. Ler os Cabeçalhos (primeira linha da planilha)
-    const headerRange = sheet.getRange(1, 1, 1, sheet.getLastColumn());
-    headers = headerRange.getValues()[0].map(header => String(header).trim()); // Garante que são strings e sem espaços extras
+    // Validação dos cabeçalhos antes de prosseguir
+    const headers = getHeaders(sheet); // getHeaders já valida colunas essenciais
 
-    if (headers.length === 0 || headers.every(h => h === '')) {
-        throw new Error(`A aba "${SHEET_NAME}" parece não ter cabeçalhos na primeira linha.`);
+    switch (action.toLowerCase()) {
+      case 'add':
+        responsePayload = addProduct(sheet, headers, requestData);
+        break;
+      case 'edit':
+        responsePayload = editProduct(sheet, headers, requestData);
+        break;
+      case 'delete':
+        responsePayload = deleteProduct(sheet, headers, requestData);
+        break;
+      case 'load':
+        responsePayload = loadProducts(sheet, headers, requestData.GOGOID);
+        break;
+      default:
+        throw new Error(`Ação "${action}" é desconhecida ou não suportada.`);
     }
-
-    // 3. Analisar os Dados JSON Recebidos
-    let data;
-    try {
-        data = JSON.parse(e.postData.contents);
-    } catch (parseError) {
-        throw new Error(`Erro ao analisar JSON: ${parseError.message}. Conteúdo recebido: ${e.postData.contents}`);
-    }
-
-    // 4. Preparar a Linha de Dados para Inserção
-    const newRow = Array(headers.length).fill(''); // Cria um array com o tamanho dos cabeçalhos, preenchido com vazio
-    const timestamp = new Date();
-    let dataFound = false; // Flag para verificar se algum dado foi mapeado
-
-    // Mapeia os dados recebidos para as colunas corretas
-    for (const fieldName in FIELD_TO_COLUMN_MAP) {
-      if (data.hasOwnProperty(fieldName)) {
-        const columnName = FIELD_TO_COLUMN_MAP[fieldName];
-        const columnIndex = headers.indexOf(columnName);
-
-        if (columnIndex !== -1) {
-          newRow[columnIndex] = data[fieldName]; // Coloca o dado na posição correta do array
-          dataFound = true;
-        } else {
-          // Loga um aviso se uma coluna mapeada não for encontrada no cabeçalho
-          Logger.log(`Aviso: A coluna "${columnName}" (mapeada para o campo "${fieldName}") não foi encontrada nos cabeçalhos da planilha: [${headers.join(', ')}]`);
-        }
-      }
-    }
-
-    // Adiciona o Timestamp se configurado e a coluna existir
-    if (TIMESTAMP_COLUMN_NAME) {
-        const timestampColumnIndex = headers.indexOf(TIMESTAMP_COLUMN_NAME);
-        if (timestampColumnIndex !== -1) {
-            newRow[timestampColumnIndex] = timestamp;
-        } else {
-            Logger.log(`Aviso: A coluna de timestamp "${TIMESTAMP_COLUMN_NAME}" não foi encontrada nos cabeçalhos.`);
-            // Opcional: Poderia adicionar o timestamp na primeira coluna vazia ou lançar erro
-        }
-    }
-
-    // Verifica se algum dado útil foi encontrado para adicionar
-    if (!dataFound && !(TIMESTAMP_COLUMN_NAME && headers.includes(TIMESTAMP_COLUMN_NAME))) {
-        throw new Error("Nenhum dos campos recebidos corresponde aos campos mapeados ou a coluna de timestamp não está configurada/encontrada.");
-    }
-
-    // 5. Adicionar a Nova Linha na Planilha
-    sheet.appendRow(newRow);
-
-    // 6. Preparar Resposta de Sucesso
-    response = {
-      status: 'success',
-      message: 'Dados adicionados com sucesso.',
-      receivedData: data, // Inclui os dados recebidos para depuração (opcional)
-      addedRow: newRow // Inclui a linha como foi adicionada (opcional)
-    };
 
   } catch (error) {
-    // 7. Lidar com Erros
-    Logger.log(`Erro em doPost: ${error.message}\nStack: ${error.stack}`);
-    // Loga detalhes adicionais se disponíveis
-    if(e && e.postData) Logger.log(`Dados recebidos no erro: ${e.postData.contents}`);
-    if(headers) Logger.log(`Cabeçalhos lidos no erro: [${headers.join(', ')}]`);
-
-    response = {
-      status: 'error',
-      message: error.message
-    };
-
-  } finally {
-    // 8. Retornar a Resposta (JSON)
-    // Sempre retorna uma resposta, seja de sucesso ou erro.
-    return ContentService.createTextOutput(JSON.stringify(response))
-      .setMimeType(ContentService.MimeType.JSON);
+    Logger.log(`ERRO GRAVE em doPost: ${error.message} - Stack: ${error.stack} - Dados Recebidos: ${e && e.postData ? e.postData.contents : 'N/A'}`);
+    responsePayload = { status: 'error', message: `Erro no servidor: ${error.message}` };
   }
+
+  return ContentService.createTextOutput(JSON.stringify(responsePayload))
+    .setMimeType(ContentService.MimeType.JSON);
 }
 
+/**
+ * Obtém e valida os cabeçalhos da planilha.
+ * @param {Sheet} sheet - O objeto da aba da planilha.
+ * @return {Array<String>} - Um array com os nomes dos cabeçalhos.
+ */
+function getHeaders(sheet) {
+  if (sheet.getLastRow() === 0) {
+    throw new Error(`A planilha "${SHEET_NAME}" está vazia e não possui cabeçalhos. Configure as colunas: ${PRODUCT_ID_COLUMN_NAME}, ${GOGOID_COLUMN_NAME}, e as colunas definidas em PRODUCT_ATTRIBUTES_MAP.`);
+  }
+  const lastCol = sheet.getLastColumn();
+  if (lastCol === 0) {
+      throw new Error(`A planilha "${SHEET_NAME}" não possui colunas definidas no cabeçalho.`);
+  }
+  const headerRow = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  const headers = headerRow.map(header => String(header || '').trim());
+
+  if (headers.indexOf(PRODUCT_ID_COLUMN_NAME) === -1) {
+      throw new Error(`Coluna obrigatória "${PRODUCT_ID_COLUMN_NAME}" não encontrada nos cabeçalhos da planilha: [${headers.join(', ')}]. Por favor, adicione esta coluna.`);
+  }
+  if (headers.indexOf(GOGOID_COLUMN_NAME) === -1) {
+      throw new Error(`Coluna obrigatória "${GOGOID_COLUMN_NAME}" não encontrada nos cabeçalhos da planilha: [${headers.join(', ')}]. Por favor, adicione esta coluna.`);
+  }
+  return headers;
+}
+
+/**
+ * Converte um objeto de dados de produto em um array para inserção na linha da planilha.
+ * @param {Object} productData - O objeto com os dados do produto.
+ * @param {Array<String>} headers - Os cabeçalhos da planilha.
+ * @param {String} productId - O ID do produto.
+ * @param {String} gogoId - O GOGOID associado.
+ * @return {Array} - Um array representando a linha.
+ */
+function mapProductDataToRow(productData, headers, productId, gogoId) {
+  const newRow = Array(headers.length).fill('');
+
+  const productIdColIdx = headers.indexOf(PRODUCT_ID_COLUMN_NAME);
+  if (productIdColIdx !== -1) newRow[productIdColIdx] = productId;
+
+  const gogoIdColIdx = headers.indexOf(GOGOID_COLUMN_NAME);
+  if (gogoIdColIdx !== -1) newRow[gogoIdColIdx] = gogoId;
+
+  for (const attributeKey in PRODUCT_ATTRIBUTES_MAP) {
+    if (productData.hasOwnProperty(attributeKey)) {
+      const columnName = PRODUCT_ATTRIBUTES_MAP[attributeKey];
+      const columnIndex = headers.indexOf(columnName);
+      if (columnIndex !== -1) {
+        newRow[columnIndex] = productData[attributeKey];
+      } else {
+        Logger.log(`Aviso (mapProductDataToRow): Atributo "${attributeKey}" (JSON) mapeado para coluna "${columnName}" (Planilha) não foi encontrado nos cabeçalhos durante a criação da linha.`);
+      }
+    }
+  }
+  return newRow;
+}
+
+/**
+ * Converte uma linha da planilha (array) em um objeto de produto.
+ * @param {Array} rowArray - O array de dados da linha.
+ * @param {Array<String>} headers - Os cabeçalhos da planilha.
+ * @return {Object} - Um objeto representando o produto.
+ */
+function rowToObject(rowArray, headers) {
+  const obj = {};
+  headers.forEach((header, index) => {
+    if (header) { // Apenas mapeia se o cabeçalho não estiver vazio
+      obj[header] = rowArray[index];
+    }
+  });
+  return obj;
+}
+
+/**
+ * Adiciona um novo produto à planilha.
+ * @param {Sheet} sheet - O objeto da aba da planilha.
+ * @param {Array<String>} headers - Os cabeçalhos da planilha.
+ * @param {Object} requestData - Os dados da requisição, esperando `productData` e `productData.GOGOID`.
+ * @return {Object} - Resultado da operação.
+ */
+function addProduct(sheet, headers, requestData) {
+  if (!requestData.productData || typeof requestData.productData !== 'object') {
+    throw new Error("Dados do produto (`productData`) ausentes ou em formato inválido para a ação 'add'.");
+  }
+  const productData = requestData.productData;
+  if (!productData.GOGOID) { // GOGOID é esperado dentro de productData para 'add'
+    throw new Error("`productData.GOGOID` é obrigatório para adicionar um produto.");
+  }
+
+  const newProductId = Utilities.getUuid(); // Gera um ID único universal
+  const newRow = mapProductDataToRow(productData, headers, newProductId, productData.GOGOID);
+
+  sheet.appendRow(newRow);
+  return {
+    status: 'success',
+    message: 'Produto adicionado com sucesso!',
+    productId: newProductId,
+    addedData: rowToObject(newRow, headers)
+  };
+}
+
+/**
+ * Encontra uma linha na planilha pelo ID do produto.
+ * @param {Sheet} sheet - O objeto da aba da planilha.
+ * @param {Array<String>} headers - Os cabeçalhos da planilha.
+ * @param {String} productId - O ID do produto a ser encontrado.
+ * @return {Object|null} - Um objeto com `rowIndex` (1-based) e `rowData` (array) se encontrado, senão null.
+ */
+function findRowByProductId(sheet, headers, productId) {
+  const productIdColumnIndex = headers.indexOf(PRODUCT_ID_COLUMN_NAME);
+  // getHeaders já valida se PRODUCT_ID_COLUMN_NAME existe, então não precisa checar productIdColumnIndex === -1 aqui.
+
+  const data = sheet.getDataRange().getValues(); // Pega todos os dados, incluindo cabeçalhos
+  // Itera a partir da segunda linha (índice 1), pois a primeira (índice 0) são os cabeçalhos
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][productIdColumnIndex] == productId) {
+      return { rowIndex: i + 1, rowData: data[i] }; // rowIndex é 1-based para uso com getRange/deleteRow
+    }
+  }
+  return null; // Produto não encontrado
+}
+
+/**
+ * Edita um produto existente na planilha.
+ * @param {Sheet} sheet - O objeto da aba da planilha.
+ * @param {Array<String>} headers - Os cabeçalhos da planilha.
+ * @param {Object} requestData - Dados da requisição, esperando `PRODUCT_ID` e `productData`.
+ * @return {Object} - Resultado da operação.
+ */
+function editProduct(sheet, headers, requestData) {
+  const productId = requestData.PRODUCT_ID || (requestData.productData ? requestData.productData[PRODUCT_ID_COLUMN_NAME] : null);
+  if (!productId) {
+    throw new Error("`PRODUCT_ID` (ou `productData.ID_PRODUTO`) é obrigatório para editar um produto.");
+  }
+  if (!requestData.productData || typeof requestData.productData !== 'object') {
+    throw new Error("Dados do produto (`productData`) ausentes ou em formato inválido para a ação 'edit'.");
+  }
+
+  const foundRowInfo = findRowByProductId(sheet, headers, productId);
+  if (!foundRowInfo) {
+    throw new Error(`Produto com ID "${productId}" não encontrado para edição.`);
+  }
+
+  const existingRowData = foundRowInfo.rowData;
+  const updatedRow = [...existingRowData]; // Cria uma cópia para modificar
+  const productUpdates = requestData.productData;
+  let changesMade = false;
+
+  // Itera sobre as chaves em productUpdates (dados enviados pelo cliente)
+  for (const jsonKey in productUpdates) {
+    if (productUpdates.hasOwnProperty(jsonKey)) {
+      let columnName;
+      let isProtectedField = false;
+
+      // Verifica se a chave JSON é um campo protegido (ID_PRODUTO ou GOGOID)
+      if (jsonKey === PRODUCT_ID_COLUMN_NAME || jsonKey === GOGOID_COLUMN_NAME) {
+        columnName = jsonKey;
+        isProtectedField = true;
+      }
+      // Verifica se a chave JSON está no mapa de atributos
+      else if (PRODUCT_ATTRIBUTES_MAP[jsonKey]) {
+        columnName = PRODUCT_ATTRIBUTES_MAP[jsonKey];
+      }
+      // Se não for protegido nem mapeado, verifica se a chave JSON corresponde diretamente a um nome de coluna
+      else if (headers.includes(jsonKey)) {
+        columnName = jsonKey; // Permite atualizar colunas não explicitamente mapeadas se o nome coincidir
+      }
+      else {
+        Logger.log(`Aviso (edit): Campo "${jsonKey}" do JSON não corresponde a ${PRODUCT_ID_COLUMN_NAME}, ${GOGOID_COLUMN_NAME}, não está em PRODUCT_ATTRIBUTES_MAP, nem é um nome de coluna direto. Ignorado na edição do produto ${productId}.`);
+        continue;
+      }
+
+      const columnIndex = headers.indexOf(columnName);
+
+      if (columnIndex !== -1) {
+        if (isProtectedField) {
+          // Compara o valor enviado com o valor existente na planilha para o campo protegido
+          if (String(productUpdates[jsonKey]).trim() !== String(updatedRow[columnIndex]).trim()) {
+            Logger.log(`Tentativa de modificar o campo protegido "${columnName}" para o produto ${productId} foi ignorada. Valor original: "${updatedRow[columnIndex]}", Tentativa: "${productUpdates[jsonKey]}"`);
+          }
+          continue; // Pula a atualização de campos protegidos
+        }
+
+        // Se o valor for diferente, atualiza e marca que houve alteração
+        if (String(updatedRow[columnIndex]) !== String(productUpdates[jsonKey])) {
+          updatedRow[columnIndex] = productUpdates[jsonKey];
+          changesMade = true;
+        }
+      } else {
+        // Este caso é menos provável se columnName foi derivado de headers.includes(jsonKey)
+        // ou de PRODUCT_ATTRIBUTES_MAP (assumindo que o mapa está sincronizado com os cabeçalhos)
+        Logger.log(`Aviso (edit): Coluna "${columnName}" (para chave JSON "${jsonKey}") não encontrada nos cabeçalhos durante a edição do produto ${productId}, embora parecesse mapeada. Ignorado.`);
+      }
+    }
+  }
+
+  if (!changesMade) {
+    return {
+        status: 'info', // Mudado para 'info' para indicar que não houve erro, mas nada mudou
+        message: 'Nenhum dado foi alterado, pois os valores enviados são iguais aos existentes.',
+        productId: productId,
+        data: rowToObject(updatedRow, headers) // Retorna os dados atuais
+    };
+  }
+
+  // Salva a linha inteira atualizada na planilha
+  sheet.getRange(foundRowInfo.rowIndex, 1, 1, updatedRow.length).setValues([updatedRow]);
+
+  return {
+    status: 'success',
+    message: 'Produto atualizado com sucesso!',
+    productId: productId,
+    updatedData: rowToObject(updatedRow, headers)
+  };
+}
+
+
+/**
+ * Exclui um produto da planilha.
+ * @param {Sheet} sheet - O objeto da aba da planilha.
+ * @param {Array<String>} headers - Os cabeçalhos da planilha.
+ * @param {Object} requestData - Dados da requisição, esperando `PRODUCT_ID`.
+ * @return {Object} - Resultado da operação.
+ */
+function deleteProduct(sheet, headers, requestData) {
+  const productId = requestData.PRODUCT_ID;
+  if (!productId) {
+    throw new Error("`PRODUCT_ID` é obrigatório para excluir um produto.");
+  }
+
+  const foundRowInfo = findRowByProductId(sheet, headers, productId);
+  if (!foundRowInfo) {
+    throw new Error(`Produto com ID "${productId}" não encontrado para exclusão.`);
+  }
+
+  sheet.deleteRow(foundRowInfo.rowIndex); // Exclui a linha encontrada
+
+  return {
+    status: 'success',
+    message: `Produto com ID "${productId}" excluído com sucesso.`,
+    productId: productId
+  };
+}
+
+/**
+ * Carrega todos os produtos associados a um GOGOID.
+ * @param {Sheet} sheet - O objeto da aba da planilha.
+ * @param {Array<String>} headers - Os cabeçalhos da planilha.
+ * @param {String} gogoId - O GOGOID para filtrar os produtos.
+ * @return {Object} - Resultado da operação, incluindo a lista de produtos.
+ */
+function loadProducts(sheet, headers, gogoId) {
+  if (!gogoId) {
+    throw new Error("`GOGOID` é obrigatório para carregar produtos.");
+  }
+
+  const gogoIdColumnIndex = headers.indexOf(GOGOID_COLUMN_NAME);
+  // getHeaders já valida se GOGOID_COLUMN_NAME existe.
+
+  const allData = sheet.getDataRange().getValues(); // Pega todos os dados, incluindo cabeçalhos
+  const products = [];
+
+  // Itera a partir da segunda linha (índice 1)
+  for (let i = 1; i < allData.length; i++) {
+    const row = allData[i];
+    // Verifica se o GOGOID corresponde e se a linha não está completamente vazia (evita processar linhas deletadas de forma estranha)
+    if (row[gogoIdColumnIndex] == gogoId && row.join('').trim().length > 0) {
+      products.push(rowToObject(row, headers));
+    }
+  }
+
+  return {
+    status: 'success',
+    message: products.length > 0 ? `Produtos carregados para GOGOID "${gogoId}".` : `Nenhum produto encontrado para GOGOID "${gogoId}".`,
+    gogoId: gogoId,
+    products: products
+  };
+}
