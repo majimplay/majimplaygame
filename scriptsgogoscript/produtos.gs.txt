@@ -5,12 +5,14 @@ const SPREADSHEET_ID = '1EYUPZjfdnPJz9tI9yJFN1cVoiy9Fs3HABqFZFaz4r2A'; // Substi
 // Nomes das abas
 const SHEET_NAME_PRODUTOS = 'Produtos'; // Nome da aba onde estão os produtos
 const SHEET_NAME_CLIENTES = 'Clientes'; // Nome da aba onde estão os clientes (usado na função doGet original)
-
+const SHEET_NAME_LOJA = 'Loja'; // Nova aba para lojas
 // Nomes das colunas
 const PRODUCT_ID_COLUMN_NAME = 'ID_PRODUTO'; // Nome da coluna do ID do Produto
 const GOGOID_COLUMN_NAME = 'GOGOID'; // Nome da coluna do Google ID do usuário associado aos produtos
 const GOOGLE_ID_COLUMN_NAME_CLIENTES = 'GoogleUserId'; // Nome da coluna do Google ID na aba de clientes (ajuste se for diferente)
-
+// Nomes das colunas na aba "Loja"
+const LOJA_GOGOID_COLUMN_NAME = 'ID'; // Coluna com o ID da loja (deve corresponder ao GOGOID dos produtos)
+const LOJA_PRODUTOS_COLUMN_NAME = 'Produtos Da Loja'; // Coluna que armazena os IDs dos produtos
 
 const PRODUCT_ATTRIBUTES_MAP = {
   'NOME': 'NOME',
@@ -95,8 +97,29 @@ function findRowByProductId(sheet, headers, productId) {
   }
   return null; // Retorna null se não encontrar
 }
+//função auxiliar para atualizar a loja:
+function updateLojaProducts(sheetLoja, gogoid, newProductId) {
+  const headers = getHeaders(sheetLoja);
+  const gogoidIndex = headers.indexOf(LOJA_GOGOID_COLUMN_NAME);
+  const produtosIndex = headers.indexOf(LOJA_PRODUTOS_COLUMN_NAME);
 
+  if (gogoidIndex === -1 || produtosIndex === -1) {
+    throw new Error(`Coluna(s) essenciais não encontradas na aba ${SHEET_NAME_LOJA}`);
+  }
 
+  const data = sheetLoja.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][gogoidIndex]).trim() === String(gogoid).trim()) {
+      const currentProducts = data[i][produtosIndex] ? String(data[i][produtosIndex]).split(',') : [];
+      currentProducts.push(newProductId);
+      const updatedProducts = currentProducts.join(',');
+      
+      sheetLoja.getRange(i + 1, produtosIndex + 1).setValue(updatedProducts);
+      return true; // Atualização bem-sucedida
+    }
+  }
+  throw new Error(`Loja com ${LOJA_GOGOID_COLUMN_NAME} = ${gogoid} não encontrada`);
+}
 // ========================================================================
 // FUNÇÕES doPost (do seu script original de produtos)
 // ========================================================================
@@ -152,12 +175,26 @@ function addProduct(sheet, headers, requestData) {
   const newProductId = Utilities.getUuid();
   const newRow = mapProductDataToRow(productData, headers, newProductId, productData.GOGOID);
   sheet.appendRow(newRow);
+// --- NOVA PARTE: Atualizar a Loja ---
+  let lojaUpdateStatus = 'Não atualizado';
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const sheetLoja = ss.getSheetByName(SHEET_NAME_LOJA);
+    if (sheetLoja) {
+      updateLojaProducts(sheetLoja, productData.GOGOID, newProductId);
+      lojaUpdateStatus = 'Atualizado com sucesso';
+    }
+  } catch (error) {
+    lojaUpdateStatus = `Erro ao atualizar loja: ${error.message}`;
+    Logger.log(`[addProduct] ${lojaUpdateStatus}`);
+  }
 
   return {
     status: 'success',
     message: 'Produto adicionado',
     productId: newProductId,
-    addedData: rowToObject(newRow, headers)
+    addedData: rowToObject(newRow, headers),
+    lojaUpdateStatus: lojaUpdateStatus // Informa o status da atualização
   };
 }
 
