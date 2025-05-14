@@ -14,6 +14,7 @@ const GOOGLE_ID_COLUMN_NAME_CLIENTES = 'GoogleUserId'; // Nome da coluna do Goog
 const LOJA_GOGOID_COLUMN_NAME = 'ID'; // Coluna com o ID da loja (deve corresponder ao GOGOID dos produtos)
 const LOJA_PRODUTOS_COLUMN_NAME = 'Produtos Da Loja'; // Coluna que armazena os IDs dos produtos
 const LOJA_NAME_COLUMN_NAME = 'loja'; //  nome da loja 
+const LOJA_REPUTACAO_COLUMN_NAME = 'REPUTACAO';
 const PRODUCT_ATTRIBUTES_MAP = {
   'NOME': 'NOME',
   'PRECO': 'PRECO',
@@ -234,7 +235,6 @@ function doPost(e) {
   return ContentService.createTextOutput(JSON.stringify(responsePayload))
     .setMimeType(ContentService.MimeType.JSON);
 }
-
 // Funções addProduct, editProduct, deleteProduct (mantidas do seu script original)
 function addProduct(sheet, headers, requestData) {
   const productData = requestData.productData || {};
@@ -705,4 +705,131 @@ function doGetProductById(e) {
   }
   // Não há bloco finally aqui, o retorno é feito dentro do try/catch
   return responsePayload; // Retorna o payload para a função chamadora (doGet principal)
+}
+// ========================================================================
+// NOVA FUNÇÃO para carregar produtos de uma loja específica (por GOGOID):
+// Acessa a aba "Loja"
+// // Busca dados da loja
+// Busca produtos em massa (eficiente)
+// ========================================================================
+function doGetProdutosDaLoja(e) {
+  const response = { status: 'error', message: '', data: null };
+  try {
+    const gogoid = e?.parameter?.gogoid;
+    if (!gogoid) throw new Error("Parâmetro 'gogoid' obrigatório");
+
+    // Acessa a aba "Loja"
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const sheetLoja = ss.getSheetByName(SHEET_NAME_LOJA);
+    if (!sheetLoja) throw new Error(`Aba "${SHEET_NAME_LOJA}" não encontrada`);
+
+    // Busca dados da loja
+    const lojaHeaders = getHeaders(sheetLoja);
+    const lojaData = sheetLoja.getDataRange().getValues();
+    const gogoidIndex = lojaHeaders.indexOf(LOJA_GOGOID_COLUMN_NAME);
+    const produtosIndex = lojaHeaders.indexOf(LOJA_PRODUTOS_COLUMN_NAME);
+    const nomeLojaIndex = lojaHeaders.indexOf(LOJA_NAME_COLUMN_NAME);
+
+    // Valida colunas
+    if ([gogoidIndex, produtosIndex, nomeLojaIndex].includes(-1)) {
+      throw new Error("Colunas essenciais faltando na aba Loja");
+    }
+
+    // Encontra a loja
+    let lojaInfo = null;
+    for (let i = 1; i < lojaData.length; i++) {
+      if (String(lojaData[i][gogoidIndex]).trim() === gogoid) {
+        lojaInfo = {
+          nome: lojaData[i][nomeLojaIndex],
+          produtosIds: lojaData[i][produtosIndex]?.split(',') || []
+        };
+        break;
+      }
+    }
+    if (!lojaInfo) throw new Error("Loja não encontrada");
+
+    // Busca produtos em massa (eficiente)
+    const sheetProdutos = ss.getSheetByName(SHEET_NAME_PRODUTOS);
+    const produtosHeaders = getHeaders(sheetProdutos);
+    const produtosData = sheetProdutos.getDataRange().getValues();
+    const idProdutoIndex = produtosHeaders.indexOf(PRODUCT_ID_COLUMN_NAME);
+
+    const produtos = [];
+    for (const row of produtosData.slice(1)) { // Ignora cabeçalho
+      if (lojaInfo.produtosIds.includes(String(row[idProdutoIndex]))) {
+        produtos.push(rowToObject(row, produtosHeaders));
+      }
+    }
+
+    response.status = 'success';
+    response.data = {
+      loja: lojaInfo.nome,
+      produtos: produtos
+    };
+
+  } catch (error) {
+    response.message = error.message;
+    Logger.log(`[doGetProdutosDaLoja] Erro: ${error.message}`);
+  }
+  return ContentService.createTextOutput(JSON.stringify(response))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+// ========================================================================
+// NOVA Função para carregar TODOS os produtos ordenados por reputação da loja:
+// Busca todas as lojas ordenadas por reputação
+// Busca todos os produtos de uma vez (eficiente)
+// Busca produtos em massa (eficiente)
+// ========================================================================
+function doGetTodosProdutosOrdenadosPorReputacao() {
+  const response = { status: 'error', message: '', data: [] };
+  try {
+    // Acessa abas
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const sheetLoja = ss.getSheetByName(SHEET_NAME_LOJA);
+    const sheetProdutos = ss.getSheetByName(SHEET_NAME_PRODUTOS);
+    if (!sheetLoja || !sheetProdutos) throw new Error("Planilhas não encontradas");
+
+    // Busca todas as lojas ordenadas por reputação
+    const lojaHeaders = getHeaders(sheetLoja);
+    const reputacaoIndex = lojaHeaders.indexOf(LOJA_REPUTACAO_COLUMN_NAME);
+    const lojaData = sheetLoja.getDataRange().getValues()
+      .slice(1) // Remove cabeçalho
+      .sort((a, b) => b[reputacaoIndex] - a[reputacaoIndex]); // Ordena DESC
+
+    // Busca todos os produtos de uma vez (eficiente)
+    const produtosHeaders = getHeaders(sheetProdutos);
+    const produtosData = sheetProdutos.getDataRange().getValues()
+      .slice(1) // Remove cabeçalho
+      .map(row => rowToObject(row, produtosHeaders));
+
+    // Mapeia produtos por ID para busca rápida
+    const produtosMap = new Map();
+    for (const produto of produtosData) {
+      produtosMap.set(produto[PRODUCT_ID_COLUMN_NAME], produto);
+    }
+
+    // Monta resposta ordenada
+    for (const lojaRow of lojaData) {
+      const produtosIds = lojaRow[lojaHeaders.indexOf(LOJA_PRODUTOS_COLUMN_NAME)]?.split(',') || [];
+      const produtosDaLoja = produtosIds
+        .map(id => produtosMap.get(id.trim()))
+        .filter(p => p !== undefined); // Remove IDs inválidos
+
+      if (produtosDaLoja.length > 0) {
+        response.data.push({
+          loja: lojaRow[lojaHeaders.indexOf(LOJA_NAME_COLUMN_NAME)],
+          reputacao: lojaRow[reputacaoIndex],
+          produtos: produtosDaLoja
+        });
+      }
+    }
+
+    response.status = 'success';
+
+  } catch (error) {
+    response.message = error.message;
+    Logger.log(`[doGetTodosProdutosOrdenadosPorReputacao] Erro: ${error.message}`);
+  }
+  return ContentService.createTextOutput(JSON.stringify(response))
+    .setMimeType(ContentService.MimeType.JSON);
 }
