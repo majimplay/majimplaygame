@@ -13,7 +13,7 @@ const GOOGLE_ID_COLUMN_NAME_CLIENTES = 'GoogleUserId'; // Nome da coluna do Goog
 // Nomes das colunas na aba "Loja"
 const LOJA_GOGOID_COLUMN_NAME = 'ID'; // Coluna com o ID da loja (deve corresponder ao GOGOID dos produtos)
 const LOJA_PRODUTOS_COLUMN_NAME = 'Produtos Da Loja'; // Coluna que armazena os IDs dos produtos
-
+const LOJA_NAME_COLUMN_NAME = 'loja'; //  nome da loja 
 const PRODUCT_ATTRIBUTES_MAP = {
   'NOME': 'NOME',
   'PRECO': 'PRECO',
@@ -104,21 +104,89 @@ function updateLojaProducts(sheetLoja, gogoid, newProductId) {
   const produtosIndex = headers.indexOf(LOJA_PRODUTOS_COLUMN_NAME);
 
   if (gogoidIndex === -1 || produtosIndex === -1) {
-    throw new Error(`Coluna(s) essenciais não encontradas na aba ${SHEET_NAME_LOJA}`);
+    throw new Error(`Colunas essenciais não encontradas na aba "${SHEET_NAME_LOJA}"`);
   }
 
   const data = sheetLoja.getDataRange().getValues();
+  let lojaEncontrada = false;
+
   for (let i = 1; i < data.length; i++) {
     if (String(data[i][gogoidIndex]).trim() === String(gogoid).trim()) {
       const currentProducts = data[i][produtosIndex] ? String(data[i][produtosIndex]).split(',') : [];
       currentProducts.push(newProductId);
-      const updatedProducts = currentProducts.join(',');
-      
-      sheetLoja.getRange(i + 1, produtosIndex + 1).setValue(updatedProducts);
-      return true; // Atualização bem-sucedida
+      sheetLoja.getRange(i + 1, produtosIndex + 1).setValue(currentProducts.join(','));
+      lojaEncontrada = true;
+      break;
     }
   }
-  throw new Error(`Loja com ${LOJA_GOGOID_COLUMN_NAME} = ${gogoid} não encontrada`);
+
+  if (!lojaEncontrada) {
+    throw new Error(`Loja com ${LOJA_GOGOID_COLUMN_NAME} = "${gogoid}" não encontrada.`);
+  }
+}
+
+function addProduct(sheet, headers, requestData) {
+  const productData = requestData.productData || {};
+  if (!productData.GOGOID) throw new Error("GOGOID obrigatório para adicionar produto");
+
+  // --- VALIDAÇÃO DA LOJA ---
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sheetLoja = ss.getSheetByName(SHEET_NAME_LOJA);
+  
+  // Se a aba "Loja" não existir, interrompe
+  if (!sheetLoja) {
+    throw new Error(`A aba "${SHEET_NAME_LOJA}" não foi encontrada. Produto não adicionado.`);
+  }
+
+  // Valida colunas essenciais da aba "Loja"
+  const lojaHeaders = getHeaders(sheetLoja);
+  if (
+    !lojaHeaders.includes(LOJA_GOGOID_COLUMN_NAME) || 
+    !lojaHeaders.includes(LOJA_NAME_COLUMN_NAME) || 
+    !lojaHeaders.includes(LOJA_PRODUTOS_COLUMN_NAME)
+  ) {
+    throw new Error(`Colunas obrigatórias não encontradas na aba "${SHEET_NAME_LOJA}".`);
+  }
+
+  // Busca a loja pelo GOGOID e valida o nome
+  const lojaData = sheetLoja.getDataRange().getValues();
+  const gogoidIndex = lojaHeaders.indexOf(LOJA_GOGOID_COLUMN_NAME);
+  const nomeLojaIndex = lojaHeaders.indexOf(LOJA_NAME_COLUMN_NAME);
+  
+  let lojaEncontrada = false;
+  let nomeLoja = '';
+
+  for (let i = 1; i < lojaData.length; i++) {
+    if (String(lojaData[i][gogoidIndex]).trim() === String(productData.GOGOID).trim()) {
+      nomeLoja = lojaData[i][nomeLojaIndex];
+      lojaEncontrada = true;
+      break;
+    }
+  }
+
+  // Se a loja não existir ou o nome estiver vazio, interrompe
+  if (!lojaEncontrada) {
+    throw new Error(`Loja com ${LOJA_GOGOID_COLUMN_NAME} = "${productData.GOGOID}" não encontrada.`);
+  }
+  if (!nomeLoja || nomeLoja.toString().trim() === '') {
+    throw new Error(`Nome da loja está vazio para o GOGOID ${productData.GOGOID}.`);
+  }
+
+  // --- ADICIONA O PRODUTO SE TUDO ESTIVER VÁLIDO ---
+  const newProductId = Utilities.getUuid();
+  const newRow = mapProductDataToRow(productData, headers, newProductId, productData.GOGOID);
+  sheet.appendRow(newRow);
+
+  // Atualiza a lista de produtos da loja
+  updateLojaProducts(sheetLoja, productData.GOGOID, newProductId);
+
+  return {
+    status: 'success',
+    message: 'Produto adicionado e loja validada',
+    productId: newProductId,
+    addedData: rowToObject(newRow, headers),
+    lojaNome: nomeLoja // Retorna o nome da loja para confirmação
+  };
 }
 // ========================================================================
 // FUNÇÕES doPost (do seu script original de produtos)
@@ -172,29 +240,36 @@ function addProduct(sheet, headers, requestData) {
   const productData = requestData.productData || {};
   if (!productData.GOGOID) throw new Error("GOGOID obrigatório para adicionar produto");
 
+  // --- VERIFICAÇÃO DA LOJA ANTES DE ADICIONAR O PRODUTO ---
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sheetLoja = ss.getSheetByName(SHEET_NAME_LOJA);
+  
+  // Se a aba "Loja" não existir, interrompe imediatamente
+  if (!sheetLoja) {
+    throw new Error(`A aba "${SHEET_NAME_LOJA}" não foi encontrada. Produto não adicionado.`);
+  }
+
+  // Valida colunas essenciais da aba "Loja"
+  const lojaHeaders = getHeaders(sheetLoja);
+  if (!lojaHeaders.includes(LOJA_GOGOID_COLUMN_NAME) || !lojaHeaders.includes(LOJA_NAME_COLUMN_NAME)) {
+    throw new Error(`Colunas obrigatórias (${LOJA_GOGOID_COLUMN_NAME} ou ${LOJA_NAME_COLUMN_NAME}) não encontradas na aba "${SHEET_NAME_LOJA}".`);
+  }
+
+  // --- CRIA O PRODUTO SÓ SE A LOJA FOR VÁLIDA ---
   const newProductId = Utilities.getUuid();
   const newRow = mapProductDataToRow(productData, headers, newProductId, productData.GOGOID);
+  
+  // Tenta atualizar a loja (se falhar, o erro propagará e interromperá a execução)
+  updateLojaProducts(sheetLoja, productData.GOGOID, newProductId); // ⚠️ Pode lançar erro
+  
+  // Se chegou aqui, a loja foi atualizada. Adiciona o produto.
   sheet.appendRow(newRow);
-// --- NOVA PARTE: Atualizar a Loja ---
-  let lojaUpdateStatus = 'Não atualizado';
-  try {
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    const sheetLoja = ss.getSheetByName(SHEET_NAME_LOJA);
-    if (sheetLoja) {
-      updateLojaProducts(sheetLoja, productData.GOGOID, newProductId);
-      lojaUpdateStatus = 'Atualizado com sucesso';
-    }
-  } catch (error) {
-    lojaUpdateStatus = `Erro ao atualizar loja: ${error.message}`;
-    Logger.log(`[addProduct] ${lojaUpdateStatus}`);
-  }
 
   return {
     status: 'success',
-    message: 'Produto adicionado',
+    message: 'Produto adicionado e loja atualizada',
     productId: newProductId,
-    addedData: rowToObject(newRow, headers),
-    lojaUpdateStatus: lojaUpdateStatus // Informa o status da atualização
+    addedData: rowToObject(newRow, headers)
   };
 }
 
