@@ -1,64 +1,127 @@
 // --- CONFIGURAÇÕES GLOBAIS ---
-const SPREADSHEET_ID = '1EYUPZjfdnPJz9tI9yJFN1cVoiy9Fs3HABqFZFaz4r2A'; // !!! SUBSTITUA PELO ID DA SUA PLANILHA !!!
-const SHEET_NAME = 'Produtos'; // Nome da aba da planilha onde os dados são armazenados
+// ** Certifique-se de que o SPREADSHEET_ID está correto **
+const SPREADSHEET_ID = '1EYUPZjfdnPJz9tI9yJFN1cVoiy9Fs3HABqFZFaz4r2A'; // Substitua pelo ID da sua planilha
 
-// Nomes das colunas CHAVE. Certifique-se que estas colunas existem na sua planilha.
-// É crucial que a primeira linha da sua planilha contenha estes nomes como cabeçalhos.
-const PRODUCT_ID_COLUMN_NAME = 'ID_PRODUTO'; // Coluna para o ID único do produto
-const GOGOID_COLUMN_NAME = 'GOGOID';       // Coluna para o ID do usuário/grupo associado ao produto
+// Nomes das abas
+const SHEET_NAME_PRODUTOS = 'Produtos'; // Nome da aba onde estão os produtos
+const SHEET_NAME_CLIENTES = 'Clientes'; // Nome da aba onde estão os clientes (usado na função doGet original)
 
-/**
- * Mapeamento dos campos do JSON de entrada (em `productData`) para os nomes das colunas na planilha.
- * Chave: Nome do campo no JSON que você envia (ex: 'NOME').
- * Valor: Nome EXATO da coluna na primeira linha (cabeçalho) da sua planilha (ex: 'Nome do Produto na Planilha').
- *
- * NÃO inclua PRODUCT_ID_COLUMN_NAME ou GOGOID_COLUMN_NAME aqui, pois são tratados de forma especial.
- * Este mapeamento é para os atributos ADICIONAIS do produto.
- */
+// Nomes das colunas
+const PRODUCT_ID_COLUMN_NAME = 'ID_PRODUTO'; // Nome da coluna do ID do Produto
+const GOGOID_COLUMN_NAME = 'GOGOID'; // Nome da coluna do Google ID do usuário associado aos produtos
+const GOOGLE_ID_COLUMN_NAME_CLIENTES = 'GoogleUserId'; // Nome da coluna do Google ID na aba de clientes (ajuste se for diferente)
+
+
 const PRODUCT_ATTRIBUTES_MAP = {
-  'NOME': 'NOME',             // Ex: campo 'NOME' no JSON vai para a coluna 'NOME' na planilha
+  'NOME': 'NOME',
   'PRECO': 'PRECO',
   'PESO': 'PESO',
   'ALTURA': 'ALTURA',
   'LARGURA': 'LARGURA',
   'COMPRIMENTO': 'COMPRIMENTO',
   'IMAGENS': 'IMAGENS'
-  // Adicione outros atributos do produto e seus respectivos nomes de coluna aqui:
-  // 'DESCRICAO': 'Descrição Detalhada',
-  // 'COR': 'Cor do Produto',
-  // 'SKU': 'SKU do Item',
 };
+
+// Mapeamento para a função doGet de clientes (ajuste conforme a sua planilha de clientes)
+const FIELD_TO_COLUMN_MAP_CLIENTES = {
+  'googleUserId': GOOGLE_ID_COLUMN_NAME_CLIENTES,
+  'nome': 'Nome', // Exemplo: mapeia o campo 'nome' para a coluna 'Nome'
+  'email': 'Email' // Exemplo: mapeia o campo 'email' para a coluna 'Email'
+  // Adicione outros mapeamentos conforme as colunas da sua aba de clientes
+};
+
 // --- FIM DAS CONFIGURAÇÕES GLOBAIS ---
 
-/**
- * Função principal que lida com requisições POST.
- * Espera um JSON no corpo da requisição com um campo "action" e outros dados dependendo da ação.
- * @param {Object} e - O objeto de evento do Apps Script contendo os dados da requisição.
- * @return {ContentService.TextOutput} - Uma resposta JSON.
- */
+
+// ========================================================================
+// FUNÇÕES AUXILIARES (Podem ser usadas por diferentes funções doGet/doPost)
+// ========================================================================
+
+function getHeaders(sheet) {
+  if (sheet.getLastRow() === 0) throw new Error("Planilha vazia");
+  const headerRow = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const headers = headerRow.map(String).map(h => h.trim());
+
+  // Validação básica para garantir que colunas essenciais existam
+  // Dependendo da função que chama getHeaders, pode ser necessário validar colunas diferentes
+  // Esta validação é mais relevante para as funções doPost/addProduct/editProduct/deleteProduct
+  // que operam na aba de Produtos.
+  // if (!headers.includes(PRODUCT_ID_COLUMN_NAME)) throw new Error(`Coluna ${PRODUCT_ID_COLUMN_NAME} faltando`);
+  // if (!headers.includes(GOGOID_COLUMN_NAME)) throw new Error(`Coluna ${GOGOID_COLUMN_NAME} faltando`);
+
+  return headers;
+}
+
+function rowToObject(rowArray, headers) {
+  return headers.reduce((obj, header, index) => {
+    if (header) obj[header] = rowArray[index];
+    return obj;
+  }, {});
+}
+
+// Função auxiliar para mapear dados de um objeto para uma linha (usada no doPost)
+function mapProductDataToRow(productData, headers, productId, gogoId) {
+  const newRow = Array(headers.length).fill('');
+  const pidIndex = headers.indexOf(PRODUCT_ID_COLUMN_NAME);
+  const gidIndex = headers.indexOf(GOGOID_COLUMN_NAME);
+  if (pidIndex > -1) newRow[pidIndex] = productId;
+  if (gidIndex > -1) newRow[gidIndex] = gogoId;
+
+  Object.entries(PRODUCT_ATTRIBUTES_MAP).forEach(([jsonKey, colName]) => {
+    const colIndex = headers.indexOf(colName);
+    if (colIndex > -1 && productData[jsonKey] !== undefined) {
+      newRow[colIndex] = productData[jsonKey];
+    }
+  });
+  return newRow;
+}
+
+// Função auxiliar para encontrar uma linha pelo ID do produto (usada no doPost e doGetProductById)
+function findRowByProductId(sheet, headers, productId) {
+  const pidIndex = headers.indexOf(PRODUCT_ID_COLUMN_NAME);
+  if (pidIndex === -1) {
+      Logger.log(`[findRowByProductId] Erro: Coluna "${PRODUCT_ID_COLUMN_NAME}" não encontrada nos cabeçalhos.`);
+      return null; // Não pode encontrar se a coluna de ID não existe
+  }
+
+  const data = sheet.getDataRange().getValues();
+
+  // Começa do índice 1 para pular o cabeçalho
+  for (let i = 1; i < data.length; i++) {
+    // Compara o valor na coluna do ID do produto com o ID buscado
+    if (String(data[i][pidIndex]).trim() === String(productId).trim()) {
+      return { rowIndex: i + 1, rowData: data[i] }; // Retorna o índice da linha na planilha (base 1) e os dados
+    }
+  }
+  return null; // Retorna null se não encontrar
+}
+
+
+// ========================================================================
+// FUNÇÕES doPost (do seu script original de produtos)
+// ========================================================================
+
 function doPost(e) {
   let responsePayload = {};
   try {
-    if (!e || !e.postData || !e.postData.contents) {
-      throw new Error("Requisição inválida ou sem dados (e.postData.contents está vazio).");
-    }
+    if (!e?.postData?.contents) throw new Error("Requisição inválida");
     const requestData = JSON.parse(e.postData.contents);
-    const action = requestData.action;
+    const action = requestData.action?.toLowerCase();
 
-    if (!action) {
-      throw new Error("A propriedade 'action' é obrigatória no JSON da requisição.");
-    }
+    if (!action) throw new Error("Propriedade 'action' obrigatória");
 
     const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    const sheet = ss.getSheetByName(SHEET_NAME);
-    if (!sheet) {
-      throw new Error(`A aba (planilha) "${SHEET_NAME}" não foi encontrada no Spreadsheet ID: ${SPREADSHEET_ID}.`);
-    }
+    const sheet = ss.getSheetByName(SHEET_NAME_PRODUTOS); // Usa o nome da aba de produtos
+    if (!sheet) throw new Error(`Aba "${SHEET_NAME_PRODUTOS}" não encontrada`);
 
-    // Validação dos cabeçalhos antes de prosseguir
-    const headers = getHeaders(sheet); // getHeaders já valida colunas essenciais
+    const headers = getHeaders(sheet);
 
-    switch (action.toLowerCase()) {
+    // Verifica se as colunas obrigatórias para POST de produtos existem
+    if (!headers.includes(PRODUCT_ID_COLUMN_NAME)) throw new Error(`Coluna ${PRODUCT_ID_COLUMN_NAME} faltando na aba ${SHEET_NAME_PRODUTOS}`);
+    if (!headers.includes(GOGOID_COLUMN_NAME)) throw new Error(`Coluna ${GOGOID_COLUMN_NAME} faltando na aba ${SHEET_NAME_PRODUTOS}`);
+
+
+    switch (action) {
       case 'add':
         responsePayload = addProduct(sheet, headers, requestData);
         break;
@@ -68,296 +131,466 @@ function doPost(e) {
       case 'delete':
         responsePayload = deleteProduct(sheet, headers, requestData);
         break;
-      case 'load':
-        responsePayload = loadProducts(sheet, headers, requestData.GOGOID);
-        break;
       default:
-        throw new Error(`Ação "${action}" é desconhecida ou não suportada.`);
+        throw new Error(`Ação "${action}" não suportada para POST em produtos`);
     }
 
   } catch (error) {
-    Logger.log(`ERRO GRAVE em doPost: ${error.message} - Stack: ${error.stack} - Dados Recebidos: ${e && e.postData ? e.postData.contents : 'N/A'}`);
-    responsePayload = { status: 'error', message: `Erro no servidor: ${error.message}` };
+    Logger.log(`ERRO em doPost (Produtos): ${error.message}`);
+    responsePayload = { status: 'error', message: error.message };
   }
 
   return ContentService.createTextOutput(JSON.stringify(responsePayload))
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-/**
- * Obtém e valida os cabeçalhos da planilha.
- * @param {Sheet} sheet - O objeto da aba da planilha.
- * @return {Array<String>} - Um array com os nomes dos cabeçalhos.
- */
-function getHeaders(sheet) {
-  if (sheet.getLastRow() === 0) {
-    throw new Error(`A planilha "${SHEET_NAME}" está vazia e não possui cabeçalhos. Configure as colunas: ${PRODUCT_ID_COLUMN_NAME}, ${GOGOID_COLUMN_NAME}, e as colunas definidas em PRODUCT_ATTRIBUTES_MAP.`);
-  }
-  const lastCol = sheet.getLastColumn();
-  if (lastCol === 0) {
-      throw new Error(`A planilha "${SHEET_NAME}" não possui colunas definidas no cabeçalho.`);
-  }
-  const headerRow = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
-  const headers = headerRow.map(header => String(header || '').trim());
-
-  if (headers.indexOf(PRODUCT_ID_COLUMN_NAME) === -1) {
-      throw new Error(`Coluna obrigatória "${PRODUCT_ID_COLUMN_NAME}" não encontrada nos cabeçalhos da planilha: [${headers.join(', ')}]. Por favor, adicione esta coluna.`);
-  }
-  if (headers.indexOf(GOGOID_COLUMN_NAME) === -1) {
-      throw new Error(`Coluna obrigatória "${GOGOID_COLUMN_NAME}" não encontrada nos cabeçalhos da planilha: [${headers.join(', ')}]. Por favor, adicione esta coluna.`);
-  }
-  return headers;
-}
-
-/**
- * Converte um objeto de dados de produto em um array para inserção na linha da planilha.
- * @param {Object} productData - O objeto com os dados do produto.
- * @param {Array<String>} headers - Os cabeçalhos da planilha.
- * @param {String} productId - O ID do produto.
- * @param {String} gogoId - O GOGOID associado.
- * @return {Array} - Um array representando a linha.
- */
-function mapProductDataToRow(productData, headers, productId, gogoId) {
-  const newRow = Array(headers.length).fill('');
-
-  const productIdColIdx = headers.indexOf(PRODUCT_ID_COLUMN_NAME);
-  if (productIdColIdx !== -1) newRow[productIdColIdx] = productId;
-
-  const gogoIdColIdx = headers.indexOf(GOGOID_COLUMN_NAME);
-  if (gogoIdColIdx !== -1) newRow[gogoIdColIdx] = gogoId;
-
-  for (const attributeKey in PRODUCT_ATTRIBUTES_MAP) {
-    if (productData.hasOwnProperty(attributeKey)) {
-      const columnName = PRODUCT_ATTRIBUTES_MAP[attributeKey];
-      const columnIndex = headers.indexOf(columnName);
-      if (columnIndex !== -1) {
-        newRow[columnIndex] = productData[attributeKey];
-      } else {
-        Logger.log(`Aviso (mapProductDataToRow): Atributo "${attributeKey}" (JSON) mapeado para coluna "${columnName}" (Planilha) não foi encontrado nos cabeçalhos durante a criação da linha.`);
-      }
-    }
-  }
-  return newRow;
-}
-
-/**
- * Converte uma linha da planilha (array) em um objeto de produto.
- * @param {Array} rowArray - O array de dados da linha.
- * @param {Array<String>} headers - Os cabeçalhos da planilha.
- * @return {Object} - Um objeto representando o produto.
- */
-function rowToObject(rowArray, headers) {
-  const obj = {};
-  headers.forEach((header, index) => {
-    if (header) { // Apenas mapeia se o cabeçalho não estiver vazio
-      obj[header] = rowArray[index];
-    }
-  });
-  return obj;
-}
-
-/**
- * Adiciona um novo produto à planilha.
- * @param {Sheet} sheet - O objeto da aba da planilha.
- * @param {Array<String>} headers - Os cabeçalhos da planilha.
- * @param {Object} requestData - Os dados da requisição, esperando `productData` e `productData.GOGOID`.
- * @return {Object} - Resultado da operação.
- */
+// Funções addProduct, editProduct, deleteProduct (mantidas do seu script original)
 function addProduct(sheet, headers, requestData) {
-  if (!requestData.productData || typeof requestData.productData !== 'object') {
-    throw new Error("Dados do produto (`productData`) ausentes ou em formato inválido para a ação 'add'.");
-  }
-  const productData = requestData.productData;
-  if (!productData.GOGOID) { // GOGOID é esperado dentro de productData para 'add'
-    throw new Error("`productData.GOGOID` é obrigatório para adicionar um produto.");
-  }
+  const productData = requestData.productData || {};
+  if (!productData.GOGOID) throw new Error("GOGOID obrigatório para adicionar produto");
 
-  const newProductId = Utilities.getUuid(); // Gera um ID único universal
+  const newProductId = Utilities.getUuid();
   const newRow = mapProductDataToRow(productData, headers, newProductId, productData.GOGOID);
-
   sheet.appendRow(newRow);
+
   return {
     status: 'success',
-    message: 'Produto adicionado com sucesso!',
+    message: 'Produto adicionado',
     productId: newProductId,
     addedData: rowToObject(newRow, headers)
   };
 }
 
-/**
- * Encontra uma linha na planilha pelo ID do produto.
- * @param {Sheet} sheet - O objeto da aba da planilha.
- * @param {Array<String>} headers - Os cabeçalhos da planilha.
- * @param {String} productId - O ID do produto a ser encontrado.
- * @return {Object|null} - Um objeto com `rowIndex` (1-based) e `rowData` (array) se encontrado, senão null.
- */
-function findRowByProductId(sheet, headers, productId) {
-  const productIdColumnIndex = headers.indexOf(PRODUCT_ID_COLUMN_NAME);
-  // getHeaders já valida se PRODUCT_ID_COLUMN_NAME existe, então não precisa checar productIdColumnIndex === -1 aqui.
-
-  const data = sheet.getDataRange().getValues(); // Pega todos os dados, incluindo cabeçalhos
-  // Itera a partir da segunda linha (índice 1), pois a primeira (índice 0) são os cabeçalhos
-  for (let i = 1; i < data.length; i++) {
-    if (data[i][productIdColumnIndex] == productId) {
-      return { rowIndex: i + 1, rowData: data[i] }; // rowIndex é 1-based para uso com getRange/deleteRow
-    }
-  }
-  return null; // Produto não encontrado
-}
-
-/**
- * Edita um produto existente na planilha.
- * @param {Sheet} sheet - O objeto da aba da planilha.
- * @param {Array<String>} headers - Os cabeçalhos da planilha.
- * @param {Object} requestData - Dados da requisição, esperando `PRODUCT_ID` e `productData`.
- * @return {Object} - Resultado da operação.
- */
 function editProduct(sheet, headers, requestData) {
-  const productId = requestData.PRODUCT_ID || (requestData.productData ? requestData.productData[PRODUCT_ID_COLUMN_NAME] : null);
-  if (!productId) {
-    throw new Error("`PRODUCT_ID` (ou `productData.ID_PRODUTO`) é obrigatório para editar um produto.");
-  }
-  if (!requestData.productData || typeof requestData.productData !== 'object') {
-    throw new Error("Dados do produto (`productData`) ausentes ou em formato inválido para a ação 'edit'.");
-  }
+  const productId = requestData.PRODUCT_ID || requestData.productData?.[PRODUCT_ID_COLUMN_NAME];
+  if (!productId) throw new Error("ID do produto obrigatório para editar");
 
-  const foundRowInfo = findRowByProductId(sheet, headers, productId);
-  if (!foundRowInfo) {
-    throw new Error(`Produto com ID "${productId}" não encontrado para edição.`);
-  }
+  const foundRowInfo = findRowByProductId(sheet, headers, productId); // Usa a função auxiliar
+  if (!foundRowInfo) throw new Error("Produto não encontrado para edição");
 
-  const existingRowData = foundRowInfo.rowData;
-  const updatedRow = [...existingRowData]; // Cria uma cópia para modificar
-  const productUpdates = requestData.productData;
+  const { rowIndex, rowData } = foundRowInfo;
+  const updatedRow = [...rowData];
   let changesMade = false;
 
-  // Itera sobre as chaves em productUpdates (dados enviados pelo cliente)
-  for (const jsonKey in productUpdates) {
-    if (productUpdates.hasOwnProperty(jsonKey)) {
-      let columnName;
-      let isProtectedField = false;
+  Object.entries(requestData.productData || {}).forEach(([key, value]) => {
+    // Determina o nome da coluna correspondente
+    const colName = [PRODUCT_ID_COLUMN_NAME, GOGOID_COLUMN_NAME].includes(key) ? key :
+                    PRODUCT_ATTRIBUTES_MAP[key] || (headers.includes(key) ? key : null);
 
-      // Verifica se a chave JSON é um campo protegido (ID_PRODUTO ou GOGOID)
-      if (jsonKey === PRODUCT_ID_COLUMN_NAME || jsonKey === GOGOID_COLUMN_NAME) {
-        columnName = jsonKey;
-        isProtectedField = true;
-      }
-      // Verifica se a chave JSON está no mapa de atributos
-      else if (PRODUCT_ATTRIBUTES_MAP[jsonKey]) {
-        columnName = PRODUCT_ATTRIBUTES_MAP[jsonKey];
-      }
-      // Se não for protegido nem mapeado, verifica se a chave JSON corresponde diretamente a um nome de coluna
-      else if (headers.includes(jsonKey)) {
-        columnName = jsonKey; // Permite atualizar colunas não explicitamente mapeadas se o nome coincidir
-      }
-      else {
-        Logger.log(`Aviso (edit): Campo "${jsonKey}" do JSON não corresponde a ${PRODUCT_ID_COLUMN_NAME}, ${GOGOID_COLUMN_NAME}, não está em PRODUCT_ATTRIBUTES_MAP, nem é um nome de coluna direto. Ignorado na edição do produto ${productId}.`);
-        continue;
-      }
+    if (!colName) return; // Ignora chaves que não correspondem a nenhuma coluna mapeada ou cabeçalho
+    const colIndex = headers.indexOf(colName);
+    if (colIndex === -1) return; // Ignora se a coluna não existe na planilha
 
-      const columnIndex = headers.indexOf(columnName);
-
-      if (columnIndex !== -1) {
-        if (isProtectedField) {
-          // Compara o valor enviado com o valor existente na planilha para o campo protegido
-          if (String(productUpdates[jsonKey]).trim() !== String(updatedRow[columnIndex]).trim()) {
-            Logger.log(`Tentativa de modificar o campo protegido "${columnName}" para o produto ${productId} foi ignorada. Valor original: "${updatedRow[columnIndex]}", Tentativa: "${productUpdates[jsonKey]}"`);
-          }
-          continue; // Pula a atualização de campos protegidos
-        }
-
-        // Se o valor for diferente, atualiza e marca que houve alteração
-        if (String(updatedRow[columnIndex]) !== String(productUpdates[jsonKey])) {
-          updatedRow[columnIndex] = productUpdates[jsonKey];
-          changesMade = true;
-        }
-      } else {
-        // Este caso é menos provável se columnName foi derivado de headers.includes(jsonKey)
-        // ou de PRODUCT_ATTRIBUTES_MAP (assumindo que o mapa está sincronizado com os cabeçalhos)
-        Logger.log(`Aviso (edit): Coluna "${columnName}" (para chave JSON "${jsonKey}") não encontrada nos cabeçalhos durante a edição do produto ${productId}, embora parecesse mapeada. Ignorado.`);
-      }
+    // Evita a edição direta de ID_PRODUTO e GOGOID via edit action, a menos que seja estritamente necessário e controlado
+    if ([PRODUCT_ID_COLUMN_NAME, GOGOID_COLUMN_NAME].includes(colName)) {
+       // Opcional: logar ou lançar erro se tentar mudar ID ou GOGOID aqui
+       if (String(value) !== String(updatedRow[colIndex])) {
+          Logger.log(`Aviso: Tentativa de alterar campo protegido "${colName}" para "${value}" no produto ${productId}. Ignorado.`);
+       }
+       return; // Não permite alteração destes campos por esta via
     }
-  }
+
+    // Compara e atualiza se o valor for diferente
+    if (String(updatedRow[colIndex]) !== String(value)) {
+      updatedRow[colIndex] = value;
+      changesMade = true;
+    }
+  });
 
   if (!changesMade) {
     return {
-        status: 'info', // Mudado para 'info' para indicar que não houve erro, mas nada mudou
-        message: 'Nenhum dado foi alterado, pois os valores enviados são iguais aos existentes.',
-        productId: productId,
-        data: rowToObject(updatedRow, headers) // Retorna os dados atuais
+      status: 'info',
+      message: 'Nenhuma alteração detectada',
+      productId: productId
     };
   }
 
-  // Salva a linha inteira atualizada na planilha
-  sheet.getRange(foundRowInfo.rowIndex, 1, 1, updatedRow.length).setValues([updatedRow]);
+  // Atualiza a linha na planilha
+  sheet.getRange(rowIndex, 1, 1, updatedRow.length).setValues([updatedRow]);
 
   return {
     status: 'success',
-    message: 'Produto atualizado com sucesso!',
+    message: 'Produto atualizado',
     productId: productId,
     updatedData: rowToObject(updatedRow, headers)
   };
 }
 
-
-/**
- * Exclui um produto da planilha.
- * @param {Sheet} sheet - O objeto da aba da planilha.
- * @param {Array<String>} headers - Os cabeçalhos da planilha.
- * @param {Object} requestData - Dados da requisição, esperando `PRODUCT_ID`.
- * @return {Object} - Resultado da operação.
- */
 function deleteProduct(sheet, headers, requestData) {
   const productId = requestData.PRODUCT_ID;
-  if (!productId) {
-    throw new Error("`PRODUCT_ID` é obrigatório para excluir um produto.");
-  }
+  if (!productId) throw new Error("ID do produto obrigatório para excluir");
 
-  const foundRowInfo = findRowByProductId(sheet, headers, productId);
-  if (!foundRowInfo) {
-    throw new Error(`Produto com ID "${productId}" não encontrado para exclusão.`);
-  }
+  const foundRowInfo = findRowByProductId(sheet, headers, productId); // Usa a função auxiliar
+  if (!foundRowInfo) throw new Error("Produto não encontrado para exclusão");
 
-  sheet.deleteRow(foundRowInfo.rowIndex); // Exclui a linha encontrada
+  const { rowIndex } = foundRowInfo;
 
+  sheet.deleteRow(rowIndex); // Exclui a linha encontrada
   return {
     status: 'success',
-    message: `Produto com ID "${productId}" excluído com sucesso.`,
+    message: 'Produto excluído',
     productId: productId
   };
 }
 
-/**
- * Carrega todos os produtos associados a um GOGOID.
- * @param {Sheet} sheet - O objeto da aba da planilha.
- * @param {Array<String>} headers - Os cabeçalhos da planilha.
- * @param {String} gogoId - O GOGOID para filtrar os produtos.
- * @return {Object} - Resultado da operação, incluindo a lista de produtos.
- */
-function loadProducts(sheet, headers, gogoId) {
-  if (!gogoId) {
-    throw new Error("`GOGOID` é obrigatório para carregar produtos.");
-  }
 
-  const gogoIdColumnIndex = headers.indexOf(GOGOID_COLUMN_NAME);
-  // getHeaders já valida se GOGOID_COLUMN_NAME existe.
+// ========================================================================
+// FUNÇÃO doGet (principal) - Roteia requisições GET
+// Esta função recebe todas as requisições GET e as direciona
+// para as funções específicas com base no parâmetro 'action'.
+// Se nenhum 'action' for especificado, pode executar uma ação padrão
+// (como buscar dados do cliente, se for o caso).
+// ========================================================================
+function doGet(e) {
+  let responsePayload = {};
 
-  const allData = sheet.getDataRange().getValues(); // Pega todos os dados, incluindo cabeçalhos
-  const products = [];
+  try {
+    // Parâmetro 'action' para determinar qual operação GET executar
+    const action = e?.parameter?.action?.toLowerCase();
+    Logger.log(`[doGet Principal] Requisição recebida com action: ${action}`);
 
-  // Itera a partir da segunda linha (índice 1)
-  for (let i = 1; i < allData.length; i++) {
-    const row = allData[i];
-    // Verifica se o GOGOID corresponde e se a linha não está completamente vazia (evita processar linhas deletadas de forma estranha)
-    if (row[gogoIdColumnIndex] == gogoId && row.join('').trim().length > 0) {
-      products.push(rowToObject(row, headers));
+    if (action === 'getproductsbygogoid') {
+      // Chama a função para buscar produtos por GOGOID
+      responsePayload = doGetProductsByGogoid(e);
+    } else if (action === 'getproductbyid') {
+      // Chama a função para buscar um produto por ID
+      responsePayload = doGetProductById(e);
+    } else {
+      // Ação padrão se nenhum 'action' for especificado ou for desconhecido
+      // Neste exemplo, vamos assumir que a ação padrão é buscar dados do cliente
+      // Se você não tiver uma aba de clientes ou não quiser essa funcionalidade aqui,
+      // remova ou ajuste esta parte.
+       Logger.log("[doGet Principal] Nenhuma action especificada ou desconhecida. Executando doGet de cliente (padrão).");
+       responsePayload = doGetCliente(e); // Chama a função original de doGet para clientes
     }
+
+  } catch (error) {
+    Logger.log(`[doGet Principal] Erro: ${error.message}\nParâmetros recebidos: ${JSON.stringify(e?.parameter)}\nStack: ${error.stack}`);
+    responsePayload = {
+      status: 'error',
+      message: `Erro na requisição GET: ${error.message}`,
+    };
   }
 
-  return {
-    status: 'success',
-    message: products.length > 0 ? `Produtos carregados para GOGOID "${gogoId}".` : `Nenhum produto encontrado para GOGOID "${gogoId}".`,
-    gogoId: gogoId,
-    products: products
-  };
+  // Retorna a resposta sempre em formato JSON
+  return ContentService.createTextOutput(JSON.stringify(responsePayload))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+
+// ========================================================================
+// FUNÇÃO doGetCliente (do seu script original de cliente)
+// Usada para buscar dados de um cliente pelo Google ID na aba de Clientes
+// Esta função é chamada pela função doGet principal quando action não é especificada
+// ou é diferente das ações de produto.
+// ========================================================================
+function doGetCliente(e) {
+  let responsePayload = {}; // Objeto para a resposta JSON
+  let ss, sheet, headers, data, googleIdToSearch;
+
+  try {
+    // 1. Valida se o parâmetro 'googleUserId' foi passado na URL
+    if (!e || !e.parameter || !e.parameter.googleUserId) {
+      throw new Error("Parâmetro 'googleUserId' não fornecido na requisição GET de cliente.");
+    }
+    googleIdToSearch = e.parameter.googleUserId;
+    Logger.log(`[doGet Cliente] Buscando dados para Google ID: ${googleIdToSearch}`);
+
+    // 2. Acessa a planilha e a aba de Clientes
+    ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    sheet = ss.getSheetByName(SHEET_NAME_CLIENTES); // Usa o nome da aba de clientes
+    if (!sheet) {
+      throw new Error(`Aba "${SHEET_NAME_CLIENTES}" não encontrada.`);
+    }
+
+    // 3. Lê os cabeçalhos e todos os dados da planilha
+    data = sheet.getDataRange().getValues();
+    // Verifica se há pelo menos a linha de cabeçalho E uma linha de dados
+    if (data.length < 2) {
+        Logger.log(`[doGet Cliente] Planilha "${SHEET_NAME_CLIENTES}" vazia ou sem dados (apenas cabeçalho).`);
+         responsePayload = {
+            status: 'not_found', // Indica que não achou dados, não necessariamente um erro
+            message: 'Nenhum registro de cliente encontrado para este Google ID (planilha vazia ou sem dados).',
+            googleUserId: googleIdToSearch
+        };
+         // Retorna imediatamente neste caso, não é um erro fatal para doGet
+         return responsePayload; // Retorna o payload para a função chamadora (doGet principal)
+    }
+    headers = data[0].map(header => String(header).trim()); // Cabeçalhos
+
+    // 4. Encontra o índice da coluna do Google ID na aba de clientes
+    const googleIdColumnIndex = headers.indexOf(GOOGLE_ID_COLUMN_NAME_CLIENTES);
+    if (googleIdColumnIndex === -1) {
+      throw new Error(`Coluna "${GOOGLE_ID_COLUMN_NAME_CLIENTES}" não encontrada nos cabeçalhos da aba "${SHEET_NAME_CLIENTES}": [${headers.join(', ')}]`);
+    }
+
+    // 5. Procura pela linha que corresponde ao Google ID
+    let foundRowData = null;
+    let foundRowIndex = -1; // Para log
+    // Começa do índice 1 para pular o cabeçalho
+    for (let i = 1; i < data.length; i++) {
+      // Compara o valor na coluna do Google ID com o ID buscado
+      if (String(data[i][googleIdColumnIndex]).trim() === String(googleIdToSearch).trim()) {
+        foundRowData = data[i]; // Armazena a linha inteira encontrada
+        foundRowIndex = i; // Armazena o índice no array de dados (base 0)
+        Logger.log(`[doGet Cliente] Linha encontrada no índice ${foundRowIndex} (linha ${foundRowIndex+1} da planilha) para o Google ID ${googleIdToSearch}.`);
+        break; // Para a busca assim que encontrar a primeira correspondência
+      }
+    }
+
+    // 6. Prepara a resposta
+    if (foundRowData) {
+      // Se encontrou a linha, mapeia os dados de volta para um objeto JSON
+      const clientData = {};
+      // Itera sobre o mapeamento FIELD_TO_COLUMN_MAP_CLIENTES
+      for (const fieldName in FIELD_TO_COLUMN_MAP_CLIENTES) {
+        const columnName = FIELD_TO_COLUMN_MAP_CLIENTES[fieldName];
+        const columnIndex = headers.indexOf(columnName);
+        // Se a coluna mapeada existe
+        if (columnIndex !== -1) {
+          // Pega o valor da célula correspondente na linha encontrada
+          clientData[fieldName] = foundRowData[columnIndex];
+        } else {
+            Logger.log(`[doGet Cliente] Aviso: Coluna "${columnName}" mapeada para "${fieldName}" não encontrada nos cabeçalhos ao buscar dados.`);
+        }
+      }
+       // Inclui explicitamente o googleUserId nos dados retornados
+      clientData.googleUserId = googleIdToSearch;
+
+      // Monta a resposta de sucesso com os dados do cliente
+      responsePayload = {
+        status: 'success',
+        message: 'Dados do cliente encontrados.',
+        googleUserId: googleIdToSearch, // Inclui o ID que foi buscado
+        clientData: clientData // O objeto com os dados mapeados
+      };
+      Logger.log(`[doGet Cliente] Dados encontrados e mapeados: ${JSON.stringify(clientData)}`);
+    } else {
+      // Se não encontrou nenhuma linha correspondente (e a planilha não estava vazia)
+      responsePayload = {
+        status: 'not_found',
+        message: 'Nenhum registro de cliente encontrado para este Google ID.',
+        googleUserId: googleIdToSearch,
+        clientData: null // Retorna null para os dados do cliente
+      };
+      Logger.log(`[doGet Cliente] Nenhum registro encontrado para Google ID: ${googleIdToSearch}`);
+    }
+
+  } catch (error) {
+    // 7. Tratamento de erros durante a busca
+    Logger.log(`[doGet Cliente] Erro: ${error.message}\nParâmetros recebidos: ${JSON.stringify(e?.parameter)}\nStack: ${error.stack}`);
+    responsePayload = {
+      status: 'error',
+      message: `Erro ao buscar dados do cliente: ${error.message}`,
+      // Incluir detalhes do erro pode ser útil para depuração, mas cuidado com informações sensíveis
+      // errorDetails: error.toString()
+    };
+  }
+  // Não há bloco finally aqui, o retorno é feito dentro do try/catch
+  return responsePayload; // Retorna o payload para a função chamadora (doGet principal)
+}
+
+
+// ========================================================================
+// FUNÇÃO doGetProductsByGogoid: Busca todos os produtos associados a um GOGOID
+// Recebe o GOGOID como parâmetro na URL (e.parameter.googleUserId)
+// Retorna um array de objetos com os dados dos produtos.
+// Esta função é chamada pela função doGet principal.
+// ========================================================================
+function doGetProductsByGogoid(e) {
+  let responsePayload = {}; // Objeto para a resposta JSON
+  let ss, sheet, headers, data, googleIdToSearch;
+
+  try {
+    // 1. Valida se o parâmetro 'googleUserId' foi passado na URL
+    if (!e || !e.parameter || !e.parameter.googleUserId) {
+      // Lança erro, pois esta função específica requer googleUserId
+      throw new Error("Parâmetro 'googleUserId' não fornecido na requisição GET para produtos por GOGOID.");
+    }
+    googleIdToSearch = e.parameter.googleUserId;
+    Logger.log(`[doGet Produtos por GOGOID] Buscando produtos para Google ID: ${googleIdToSearch}`);
+
+    // 2. Acessa a planilha e a aba de Produtos
+    ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    sheet = ss.getSheetByName(SHEET_NAME_PRODUTOS); // Usa o nome da aba de produtos
+    if (!sheet) {
+      throw new Error(`Aba "${SHEET_NAME_PRODUTOS}" não encontrada.`);
+    }
+
+    // 3. Lê os cabeçalhos e todos os dados da planilha
+    data = sheet.getDataRange().getValues();
+    // Verifica se há pelo menos a linha de cabeçalho E uma linha de dados
+    if (data.length < 2) {
+        Logger.log(`[doGet Produtos por GOGOID] Planilha "${SHEET_NAME_PRODUTOS}" vazia ou sem dados (apenas cabeçalho).`);
+         responsePayload = {
+            status: 'not_found', // Indica que não achou dados, não necessariamente um erro
+            message: 'Nenhum produto encontrado para este Google ID (planilha vazia ou sem dados).',
+            googleUserId: googleIdToSearch,
+            productsData: [] // Retorna um array vazio
+        };
+         // Retorna o payload para a função chamadora (doGet principal)
+         return responsePayload;
+    }
+    headers = data[0].map(header => String(header).trim()); // Cabeçalhos
+
+    // 4. Encontra o índice da coluna do GOGOID
+    const gogoidColumnIndex = headers.indexOf(GOGOID_COLUMN_NAME);
+    if (gogoidColumnIndex === -1) {
+      throw new Error(`Coluna "${GOGOID_COLUMN_NAME}" não encontrada nos cabeçalhos da aba "${SHEET_NAME_PRODUTOS}": [${headers.join(', ')}]`);
+    }
+
+    // 5. Procura pelas linhas que correspondem ao GOGOID
+    const foundProducts = [];
+    // Começa do índice 1 para pular o cabeçalho
+    for (let i = 1; i < data.length; i++) {
+      // Compara o valor na coluna do GOGOID com o ID buscado
+      if (String(data[i][gogoidColumnIndex]).trim() === String(googleIdToSearch).trim()) {
+        // Se encontrou uma linha, mapeia os dados de volta para um objeto JSON
+        const productData = {};
+        // Itera sobre os cabeçalhos para criar o objeto do produto
+        headers.forEach((header, index) => {
+             // Adiciona todas as colunas encontradas na linha
+             productData[header] = data[i][index];
+        });
+        foundProducts.push(productData); // Adiciona o objeto do produto ao array
+        Logger.log(`[doGet Produtos por GOGOID] Produto encontrado na linha ${i+1} para o Google ID ${googleIdToSearch}.`);
+      }
+    }
+
+    // 6. Prepara a resposta
+    if (foundProducts.length > 0) {
+      // Se encontrou produtos
+      responsePayload = {
+        status: 'success',
+        message: `${foundProducts.length} produto(s) encontrado(s).`,
+        googleUserId: googleIdToSearch, // Inclui o ID que foi buscado
+        productsData: foundProducts // O array com os objetos dos produtos
+      };
+      Logger.log(`[doGet Produtos por GOGOID] Produtos encontrados e mapeados: ${JSON.stringify(foundProducts)}`);
+    } else {
+      // Se não encontrou nenhuma linha correspondente (e a planilha não estava vazia)
+      responsePayload = {
+        status: 'not_found',
+        message: 'Nenhum produto encontrado para este Google ID.',
+        googleUserId: googleIdToSearch,
+        productsData: [] // Retorna um array vazio
+      };
+      Logger.log(`[doGet Produtos por GOGOID] Nenhum produto encontrado para Google ID: ${googleIdToSearch}`);
+    }
+
+  } catch (error) {
+    // 7. Tratamento de erros durante a busca
+    Logger.log(`[doGet Produtos por GOGOID] Erro: ${error.message}\nParâmetros recebidos: ${JSON.stringify(e?.parameter)}\nStack: ${error.stack}`);
+    responsePayload = {
+      status: 'error',
+      message: `Erro ao buscar produtos: ${error.message}`,
+      // Incluir detalhes do erro pode ser útil para depuração, mas cuidado com informações sensíveis
+      // errorDetails: error.toString()
+    };
+  }
+  // Não há bloco finally aqui, o retorno é feito dentro do try/catch
+  return responsePayload; // Retorna o payload para a função chamadora (doGet principal)
+}
+
+
+// ========================================================================
+// NOVA FUNÇÃO doGetProductById: Busca um produto específico pelo ID_PRODUTO
+// Recebe o ID_PRODUTO como parâmetro na URL (e.parameter.productId)
+// Retorna um objeto com os dados do produto encontrado.
+// Esta função é chamada pela função doGet principal.
+// ========================================================================
+function doGetProductById(e) {
+  let responsePayload = {}; // Objeto para a resposta JSON
+  let ss, sheet, headers, data, productIdToSearch;
+
+  try {
+    // 1. Valida se o parâmetro 'productId' foi passado na URL
+    if (!e || !e.parameter || !e.parameter.productId) {
+      // Lança erro, pois esta função específica requer productId
+      throw new Error("Parâmetro 'productId' não fornecido na requisição GET para produto por ID.");
+    }
+    productIdToSearch = e.parameter.productId;
+    Logger.log(`[doGet Produto por ID] Buscando produto pelo ID: ${productIdToSearch}`);
+
+    // 2. Acessa a planilha e a aba de Produtos
+    ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    sheet = ss.getSheetByName(SHEET_NAME_PRODUTOS); // Usa o nome da aba de produtos
+    if (!sheet) {
+      throw new Error(`Aba "${SHEET_NAME_PRODUTOS}" não encontrada.`);
+    }
+
+    // 3. Lê os cabeçalhos e todos os dados da planilha
+    data = sheet.getDataRange().getValues();
+    // Verifica se há pelo menos a linha de cabeçalho E uma linha de dados
+    if (data.length < 2) {
+         Logger.log(`[doGet Produto por ID] Planilha "${SHEET_NAME_PRODUTOS}" vazia ou sem dados (apenas cabeçalho).`);
+         responsePayload = {
+            status: 'not_found', // Indica que não achou dados, não necessariamente um erro
+            message: 'Nenhum produto encontrado com este ID (planilha vazia ou sem dados).',
+            productId: productIdToSearch,
+            productData: null // Retorna null para os dados do produto
+        };
+         // Retorna o payload para a função chamadora (doGet principal)
+         return responsePayload;
+    }
+    headers = data[0].map(header => String(header).trim()); // Cabeçalhos
+
+    // 4. Encontra o índice da coluna do ID_PRODUTO
+    const productIdColumnIndex = headers.indexOf(PRODUCT_ID_COLUMN_NAME);
+    if (productIdColumnIndex === -1) {
+      throw new Error(`Coluna "${PRODUCT_ID_COLUMN_NAME}" não encontrada nos cabeçalhos da aba "${SHEET_NAME_PRODUTOS}": [${headers.join(', ')}]`);
+    }
+
+    // 5. Procura pela linha que corresponde ao ID_PRODUTO
+    let foundProductData = null;
+    // Começa do índice 1 para pular o cabeçalho
+    for (let i = 1; i < data.length; i++) {
+      // Compara o valor na coluna do ID_PRODUTO com o ID buscado
+      if (String(data[i][productIdColumnIndex]).trim() === String(productIdToSearch).trim()) {
+        // Se encontrou a linha, mapeia os dados de volta para um objeto JSON
+        const productData = {};
+        // Itera sobre os cabeçalhos para criar o objeto do produto
+        headers.forEach((header, index) => {
+             // Adiciona todas as colunas encontradas na linha
+             productData[header] = data[i][index];
+        });
+        foundProductData = productData; // Armazena o objeto do produto encontrado
+        Logger.log(`[doGet Produto por ID] Produto encontrado na linha ${i+1} para o ID ${productIdToSearch}.`);
+        break; // Para a busca assim que encontrar a primeira correspondência
+      }
+    }
+
+    // 6. Prepara a resposta
+    if (foundProductData) {
+      // Se encontrou o produto
+      responsePayload = {
+        status: 'success',
+        message: 'Produto encontrado.',
+        productId: productIdToSearch, // Inclui o ID que foi buscado
+        productData: foundProductData // O objeto com os dados do produto
+      };
+      Logger.log(`[doGet Produto por ID] Dados do produto encontrados e mapeados: ${JSON.stringify(foundProductData)}`);
+    } else {
+      // Se não encontrou nenhuma linha correspondente (e a planilha não estava vazia)
+      responsePayload = {
+        status: 'not_found',
+        message: 'Nenhum produto encontrado com este ID.',
+        productId: productIdToSearch,
+        productData: null // Retorna null para os dados do produto
+      };
+      Logger.log(`[doGet Produto por ID] Nenhum produto encontrado para ID: ${productIdToSearch}`);
+    }
+
+  } catch (error) {
+    // 7. Tratamento de erros durante a busca
+    Logger.log(`[doGet Produto por ID] Erro: ${error.message}\nParâmetros recebidos: ${JSON.stringify(e?.parameter)}\nStack: ${error.stack}`);
+    responsePayload = {
+      status: 'error',
+      message: `Erro ao buscar produto: ${error.message}`,
+      // Incluir detalhes do erro pode ser útil para depuração, mas cuidado com informações sensíveis
+      // errorDetails: error.toString()
+    };
+  }
+  // Não há bloco finally aqui, o retorno é feito dentro do try/catch
+  return responsePayload; // Retorna o payload para a função chamadora (doGet principal)
 }
