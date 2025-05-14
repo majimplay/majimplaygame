@@ -1,0 +1,235 @@
+// --- CONFIGURAÇÕES GLOBAIS ---
+const SPREADSHEET_ID = '1EYUPZjfdnPJz9tI9yJFN1cVoiy9Fs3HABqFZFaz4r2A';
+const SHEET_NAME = 'Produtos';
+const PRODUCT_ID_COLUMN_NAME = 'ID_PRODUTO';
+const GOGOID_COLUMN_NAME = 'GOGOID';
+
+const PRODUCT_ATTRIBUTES_MAP = {
+  'NOME': 'NOME',
+  'PRECO': 'PRECO',
+  'PESO': 'PESO',
+  'ALTURA': 'ALTURA',
+  'LARGURA': 'LARGURA',
+  'COMPRIMENTO': 'COMPRIMENTO',
+  'IMAGENS': 'IMAGENS'
+};
+// --- FIM DAS CONFIGURAÇÕES GLOBAIS ---
+/**
+ * Função doGet para buscar todos os produtos associados a um GOGOID.
+ * @param {Object} e - Objeto de evento do Apps Script com parâmetros da URL.
+ * @return {ContentService.TextOutput} - Resposta JSON com produtos ou mensagem de erro.
+ */
+function doGet(e) {
+  let responsePayload = {};
+  try {
+    // 1. Validação do parâmetro GOGOID
+    if (!e || !e.parameter || !e.parameter.gogoid) {
+      throw new Error("Parâmetro 'gogoid' não fornecido na URL.");
+    }
+    const gogoid = e.parameter.gogoid;
+    
+    // 2. Acesso à planilha
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const sheet = ss.getSheetByName(SHEET_NAME);
+    if (!sheet) throw new Error(`Aba "${SHEET_NAME}" não encontrada.`);
+
+    // 3. Obtenção de cabeçalhos e dados
+    const headers = getHeaders(sheet); // Reutiliza a validação existente
+    const data = sheet.getDataRange().getValues();
+    
+    // 4. Encontra índice da coluna GOGOID
+    const gogoidColumnIndex = headers.indexOf(GOGOID_COLUMN_NAME);
+    
+    // 5. Filtra produtos do usuário
+    const userProducts = [];
+    for (let i = 1; i < data.length; i++) { // Ignora cabeçalho
+      if (String(data[i][gogoidColumnIndex]).trim() === String(gogoid).trim()) {
+        userProducts.push(rowToObject(data[i], headers));
+      }
+    }
+
+    // 6. Monta resposta
+    if (userProducts.length > 0) {
+      responsePayload = {
+        status: 'success',
+        message: `${userProducts.length} produto(s) encontrado(s).`,
+        gogoid: gogoid,
+        products: userProducts
+      };
+    } else {
+      responsePayload = {
+        status: 'not_found',
+        message: 'Nenhum produto encontrado para este GOGOID.',
+        gogoid: gogoid
+      };
+    }
+
+  } catch (error) {
+    Logger.log(`Erro em doGet: ${error.message}`);
+    responsePayload = {
+      status: 'error',
+      message: `Erro na busca: ${error.message}`
+    };
+  }
+
+
+function doPost(e) {
+  let responsePayload = {};
+  try {
+    if (!e?.postData?.contents) throw new Error("Requisição inválida");
+    const requestData = JSON.parse(e.postData.contents);
+    const action = requestData.action?.toLowerCase();
+
+    if (!action) throw new Error("Propriedade 'action' obrigatória");
+
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const sheet = ss.getSheetByName(SHEET_NAME);
+    if (!sheet) throw new Error(`Aba "${SHEET_NAME}" não encontrada`);
+
+    const headers = getHeaders(sheet);
+
+    switch (action) {
+      case 'add':
+        responsePayload = addProduct(sheet, headers, requestData);
+        break;
+      case 'edit':
+        responsePayload = editProduct(sheet, headers, requestData);
+        break;
+      case 'delete':
+        responsePayload = deleteProduct(sheet, headers, requestData);
+        break;
+      default:
+        throw new Error(`Ação "${action}" não suportada`);
+    }
+
+  } catch (error) {
+    Logger.log(`ERRO: ${error.message}`);
+    responsePayload = { status: 'error', message: error.message };
+  }
+
+  return ContentService.createTextOutput(JSON.stringify(responsePayload))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function getHeaders(sheet) {
+  if (sheet.getLastRow() === 0) throw new Error("Planilha vazia");
+  const headerRow = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const headers = headerRow.map(String).map(h => h.trim());
+
+  if (!headers.includes(PRODUCT_ID_COLUMN_NAME)) throw new Error(`Coluna ${PRODUCT_ID_COLUMN_NAME} faltando`);
+  if (!headers.includes(GOGOID_COLUMN_NAME)) throw new Error(`Coluna ${GOGOID_COLUMN_NAME} faltando`);
+  
+  return headers;
+}
+
+function mapProductDataToRow(productData, headers, productId, gogoId) {
+  const newRow = Array(headers.length).fill('');
+  const pidIndex = headers.indexOf(PRODUCT_ID_COLUMN_NAME);
+  const gidIndex = headers.indexOf(GOGOID_COLUMN_NAME);
+  if (pidIndex > -1) newRow[pidIndex] = productId;
+  if (gidIndex > -1) newRow[gidIndex] = gogoId;
+
+  Object.entries(PRODUCT_ATTRIBUTES_MAP).forEach(([jsonKey, colName]) => {
+    const colIndex = headers.indexOf(colName);
+    if (colIndex > -1 && productData[jsonKey] !== undefined) {
+      newRow[colIndex] = productData[jsonKey];
+    }
+  });
+  return newRow;
+}
+
+function rowToObject(rowArray, headers) {
+  return headers.reduce((obj, header, index) => {
+    if (header) obj[header] = rowArray[index];
+    return obj;
+  }, {});
+}
+
+function addProduct(sheet, headers, requestData) {
+  const productData = requestData.productData || {};
+  if (!productData.GOGOID) throw new Error("GOGOID obrigatório");
+
+  const newProductId = Utilities.getUuid();
+  const newRow = mapProductDataToRow(productData, headers, newProductId, productData.GOGOID);
+  sheet.appendRow(newRow);
+  
+  return {
+    status: 'success',
+    message: 'Produto adicionado',
+    productId: newProductId,
+    addedData: rowToObject(newRow, headers)
+  };
+}
+
+function findRowByProductId(sheet, headers, productId) {
+  const pidIndex = headers.indexOf(PRODUCT_ID_COLUMN_NAME);
+  const data = sheet.getDataRange().getValues();
+  
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][pidIndex] == productId) {
+      return { rowIndex: i + 1, rowData: data[i] };
+    }
+  }
+  return null;
+}
+
+function editProduct(sheet, headers, requestData) {
+  const productId = requestData.PRODUCT_ID || requestData.productData?.[PRODUCT_ID_COLUMN_NAME];
+  if (!productId) throw new Error("ID do produto obrigatório");
+
+  const foundRow = findRowByProductId(sheet, headers, productId);
+  if (!foundRow) throw new Error("Produto não encontrado");
+
+  const updatedRow = [...foundRow.rowData];
+  let changesMade = false;
+
+  Object.entries(requestData.productData || {}).forEach(([key, value]) => {
+    const colName = [PRODUCT_ID_COLUMN_NAME, GOGOID_COLUMN_NAME].includes(key) ? key :
+                    PRODUCT_ATTRIBUTES_MAP[key] || (headers.includes(key) ? key : null);
+    
+    if (!colName) return;
+    const colIndex = headers.indexOf(colName);
+    if (colIndex === -1) return;
+
+    if ([PRODUCT_ID_COLUMN_NAME, GOGOID_COLUMN_NAME].includes(colName)) {
+      if (String(value) !== String(updatedRow[colIndex])) {
+        Logger.log(`Campo protegido "${colName}" ignorado`);
+      }
+      return;
+    }
+
+    if (String(updatedRow[colIndex]) !== String(value)) {
+      updatedRow[colIndex] = value;
+      changesMade = true;
+    }
+  });
+
+  if (!changesMade) return {
+    status: 'info',
+    message: 'Nenhuma alteração detectada',
+    productId: productId
+  };
+
+  sheet.getRange(foundRow.rowIndex, 1, 1, updatedRow.length).setValues([updatedRow]);
+  return {
+    status: 'success',
+    message: 'Produto atualizado',
+    productId: productId,
+    updatedData: rowToObject(updatedRow, headers)
+  };
+}
+
+function deleteProduct(sheet, headers, requestData) {
+  const productId = requestData.PRODUCT_ID;
+  if (!productId) throw new Error("ID do produto obrigatório");
+
+  const foundRow = findRowByProductId(sheet, headers, productId);
+  if (!foundRow) throw new Error("Produto não encontrado");
+
+  sheet.deleteRow(foundRow.rowIndex);
+  return {
+    status: 'success',
+    message: 'Produto excluído',
+    productId: productId
+  };
+}
