@@ -361,12 +361,17 @@ function doGet(e) {
     const action = e?.parameter?.action?.toLowerCase();
     Logger.log(`[doGet Principal] Requisição recebida com action: ${action}`);
 
-    if (action === 'getproductsbygogoid') {
+    if (action === 'getprodutosdaloja') {
       // Chama a função para buscar produtos por GOGOID
-      responsePayload = doGetProductsByGogoid(e);
+      responsePayload = doGetProdutosDaLoja(e);
     } else if (action === 'getproductbyid') {
       // Chama a função para buscar um produto por ID
       responsePayload = doGetProductById(e);
+
+    } else if (action === 'GetTodosProdutosOrdenadosPorReputacao') {
+      // Chama a função para buscar um produto por ID
+      responsePayload = doGetTodosProdutosOrdenadosPorReputacao(e);
+
     } else {
       // Ação padrão se nenhum 'action' for especificado ou for desconhecido
       // Neste exemplo, vamos assumir que a ação padrão é buscar dados do cliente
@@ -711,6 +716,7 @@ function doGetProductById(e) {
 // Acessa a aba "Loja"
 // // Busca dados da loja
 // Busca produtos em massa (eficiente)
+// Chamada via URL (GET):https://script.google.com/.../exec?action=getProdutosDaLoja&gogoid=LOJA_123
 // ========================================================================
 function doGetProdutosDaLoja(e) {
   const response = { status: 'error', message: '', data: null };
@@ -779,6 +785,7 @@ function doGetProdutosDaLoja(e) {
 // Busca todas as lojas ordenadas por reputação
 // Busca todos os produtos de uma vez (eficiente)
 // Busca produtos em massa (eficiente)
+// Chamada via URL (GET):https://script.google.com/.../exec?action=getTodosProdutosOrdenados
 // ========================================================================
 function doGetTodosProdutosOrdenadosPorReputacao() {
   const response = { status: 'error', message: '', data: [] };
