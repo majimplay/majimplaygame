@@ -5,13 +5,16 @@ const SPREADSHEET_ID = '1EYUPZjfdnPJz9tI9yJFN1cVoiy9Fs3HABqFZFaz4r2A'; // Substi
 // Nomes das abas
 const SHEET_NAME_PRODUTOS = 'Produtos'; // Nome da aba onde estão os produtos
 const SHEET_NAME_CLIENTES = 'Clientes'; // Nome da aba onde estão os clientes (usado na função doGet original)
-
+const SHEET_NAME_LOJA = 'Loja'; // Nova aba para lojas
 // Nomes das colunas
 const PRODUCT_ID_COLUMN_NAME = 'ID_PRODUTO'; // Nome da coluna do ID do Produto
 const GOGOID_COLUMN_NAME = 'GOGOID'; // Nome da coluna do Google ID do usuário associado aos produtos
 const GOOGLE_ID_COLUMN_NAME_CLIENTES = 'GoogleUserId'; // Nome da coluna do Google ID na aba de clientes (ajuste se for diferente)
-
-
+// Nomes das colunas na aba "Loja"
+const LOJA_GOGOID_COLUMN_NAME = 'ID'; // Coluna com o ID da loja (deve corresponder ao GOGOID dos produtos)
+const LOJA_PRODUTOS_COLUMN_NAME = 'Produtos Da Loja'; // Coluna que armazena os IDs dos produtos
+const LOJA_NAME_COLUMN_NAME = 'loja'; //  nome da loja 
+const LOJA_REPUTACAO_COLUMN_NAME = 'REPUTACAO';
 const PRODUCT_ATTRIBUTES_MAP = {
   'NOME': 'NOME',
   'PRECO': 'PRECO',
@@ -95,8 +98,97 @@ function findRowByProductId(sheet, headers, productId) {
   }
   return null; // Retorna null se não encontrar
 }
+//função auxiliar para atualizar a loja:
+function updateLojaProducts(sheetLoja, gogoid, newProductId) {
+  const headers = getHeaders(sheetLoja);
+  const gogoidIndex = headers.indexOf(LOJA_GOGOID_COLUMN_NAME);
+  const produtosIndex = headers.indexOf(LOJA_PRODUTOS_COLUMN_NAME);
 
+  if (gogoidIndex === -1 || produtosIndex === -1) {
+    throw new Error(`Colunas essenciais não encontradas na aba "${SHEET_NAME_LOJA}"`);
+  }
 
+  const data = sheetLoja.getDataRange().getValues();
+  let lojaEncontrada = false;
+
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][gogoidIndex]).trim() === String(gogoid).trim()) {
+      const currentProducts = data[i][produtosIndex] ? String(data[i][produtosIndex]).split(',') : [];
+      currentProducts.push(newProductId);
+      sheetLoja.getRange(i + 1, produtosIndex + 1).setValue(currentProducts.join(','));
+      lojaEncontrada = true;
+      break;
+    }
+  }
+
+  if (!lojaEncontrada) {
+    throw new Error(`Loja com ${LOJA_GOGOID_COLUMN_NAME} = "${gogoid}" não encontrada.`);
+  }
+}
+
+function addProduct(sheet, headers, requestData) {
+  const productData = requestData.productData || {};
+  if (!productData.GOGOID) throw new Error("GOGOID obrigatório para adicionar produto");
+
+  // --- VALIDAÇÃO DA LOJA ---
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sheetLoja = ss.getSheetByName(SHEET_NAME_LOJA);
+  
+  // Se a aba "Loja" não existir, interrompe
+  if (!sheetLoja) {
+    throw new Error(`A aba "${SHEET_NAME_LOJA}" não foi encontrada. Produto não adicionado.`);
+  }
+
+  // Valida colunas essenciais da aba "Loja"
+  const lojaHeaders = getHeaders(sheetLoja);
+  if (
+    !lojaHeaders.includes(LOJA_GOGOID_COLUMN_NAME) || 
+    !lojaHeaders.includes(LOJA_NAME_COLUMN_NAME) || 
+    !lojaHeaders.includes(LOJA_PRODUTOS_COLUMN_NAME)
+  ) {
+    throw new Error(`Colunas obrigatórias não encontradas na aba "${SHEET_NAME_LOJA}".`);
+  }
+
+  // Busca a loja pelo GOGOID e valida o nome
+  const lojaData = sheetLoja.getDataRange().getValues();
+  const gogoidIndex = lojaHeaders.indexOf(LOJA_GOGOID_COLUMN_NAME);
+  const nomeLojaIndex = lojaHeaders.indexOf(LOJA_NAME_COLUMN_NAME);
+  
+  let lojaEncontrada = false;
+  let nomeLoja = '';
+
+  for (let i = 1; i < lojaData.length; i++) {
+    if (String(lojaData[i][gogoidIndex]).trim() === String(productData.GOGOID).trim()) {
+      nomeLoja = lojaData[i][nomeLojaIndex];
+      lojaEncontrada = true;
+      break;
+    }
+  }
+
+  // Se a loja não existir ou o nome estiver vazio, interrompe
+  if (!lojaEncontrada) {
+    throw new Error(`Loja com ${LOJA_GOGOID_COLUMN_NAME} = "${productData.GOGOID}" não encontrada.`);
+  }
+  if (!nomeLoja || nomeLoja.toString().trim() === '') {
+    throw new Error(`Nome da loja está vazio para o GOGOID ${productData.GOGOID}.`);
+  }
+
+  // --- ADICIONA O PRODUTO SE TUDO ESTIVER VÁLIDO ---
+  const newProductId = Utilities.getUuid();
+  const newRow = mapProductDataToRow(productData, headers, newProductId, productData.GOGOID);
+  sheet.appendRow(newRow);
+
+  // Atualiza a lista de produtos da loja
+  updateLojaProducts(sheetLoja, productData.GOGOID, newProductId);
+
+  return {
+    status: 'success',
+    message: 'Produto adicionado e loja validada',
+    productId: newProductId,
+    addedData: rowToObject(newRow, headers),
+    lojaNome: nomeLoja // Retorna o nome da loja para confirmação
+  };
+}
 // ========================================================================
 // FUNÇÕES doPost (do seu script original de produtos)
 // ========================================================================
@@ -143,19 +235,39 @@ function doPost(e) {
   return ContentService.createTextOutput(JSON.stringify(responsePayload))
     .setMimeType(ContentService.MimeType.JSON);
 }
-
 // Funções addProduct, editProduct, deleteProduct (mantidas do seu script original)
 function addProduct(sheet, headers, requestData) {
   const productData = requestData.productData || {};
   if (!productData.GOGOID) throw new Error("GOGOID obrigatório para adicionar produto");
 
+  // --- VERIFICAÇÃO DA LOJA ANTES DE ADICIONAR O PRODUTO ---
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sheetLoja = ss.getSheetByName(SHEET_NAME_LOJA);
+  
+  // Se a aba "Loja" não existir, interrompe imediatamente
+  if (!sheetLoja) {
+    throw new Error(`A aba "${SHEET_NAME_LOJA}" não foi encontrada. Produto não adicionado.`);
+  }
+
+  // Valida colunas essenciais da aba "Loja"
+  const lojaHeaders = getHeaders(sheetLoja);
+  if (!lojaHeaders.includes(LOJA_GOGOID_COLUMN_NAME) || !lojaHeaders.includes(LOJA_NAME_COLUMN_NAME)) {
+    throw new Error(`Colunas obrigatórias (${LOJA_GOGOID_COLUMN_NAME} ou ${LOJA_NAME_COLUMN_NAME}) não encontradas na aba "${SHEET_NAME_LOJA}".`);
+  }
+
+  // --- CRIA O PRODUTO SÓ SE A LOJA FOR VÁLIDA ---
   const newProductId = Utilities.getUuid();
   const newRow = mapProductDataToRow(productData, headers, newProductId, productData.GOGOID);
+  
+  // Tenta atualizar a loja (se falhar, o erro propagará e interromperá a execução)
+  updateLojaProducts(sheetLoja, productData.GOGOID, newProductId); // ⚠️ Pode lançar erro
+  
+  // Se chegou aqui, a loja foi atualizada. Adiciona o produto.
   sheet.appendRow(newRow);
 
   return {
     status: 'success',
-    message: 'Produto adicionado',
+    message: 'Produto adicionado e loja atualizada',
     productId: newProductId,
     addedData: rowToObject(newRow, headers)
   };
@@ -249,12 +361,18 @@ function doGet(e) {
     const action = e?.parameter?.action?.toLowerCase();
     Logger.log(`[doGet Principal] Requisição recebida com action: ${action}`);
 
-    if (action === 'getproductsbygogoid') {
-      // Chama a função para buscar produtos por GOGOID
-      responsePayload = doGetProductsByGogoid(e);
+    if (action === 'getprodutosdaloja') {
+      
+      responsePayload = doGetProdutosDaLoja(e);
+      return responsePayload;
     } else if (action === 'getproductbyid') {
       // Chama a função para buscar um produto por ID
       responsePayload = doGetProductById(e);
+
+    } else if (action === 'gettodosprodutosordenadosporreputacao') {
+      // Chama a função para buscar um produto por ID
+      responsePayload = doGetTodosProdutosOrdenadosPorReputacao(e);
+
     } else {
       // Ação padrão se nenhum 'action' for especificado ou for desconhecido
       // Neste exemplo, vamos assumir que a ação padrão é buscar dados do cliente
@@ -593,4 +711,225 @@ function doGetProductById(e) {
   }
   // Não há bloco finally aqui, o retorno é feito dentro do try/catch
   return responsePayload; // Retorna o payload para a função chamadora (doGet principal)
+}
+// ========================================================================
+// NOVA FUNÇÃO para carregar produtos de uma loja específica (por GOGOID):
+// Acessa a aba "Loja"
+// // Busca dados da loja
+// Busca produtos em massa (eficiente)
+// Chamada via URL (GET):https://script.google.com/.../exec?action=getProdutosDaLoja&gogoid=LOJA_123
+// ========================================================================
+function doGetProdutosDaLoja(e) {
+  // Inicializa o objeto de resposta padrão.
+  const response = { status: 'error', message: 'Erro desconhecido ao buscar produtos da loja.', data: null };
+  const gogoid = e?.parameter?.gogoid; // gogoid da LOJA
+  
+  Logger.log(`[doGetProdutosDaLoja] Iniciando. gogoid da loja recebido: "${gogoid}"`);
+
+  try {
+    if (!gogoid) {
+      response.message = "Parâmetro 'gogoid' da loja é obrigatório.";
+      Logger.log(`[doGetProdutosDaLoja] Erro: ${response.message}`);
+      // Retorna imediatamente se o gogoid não for fornecido.
+      return ContentService.createTextOutput(JSON.stringify(response))
+                        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+
+    // 1. Acessar a aba "Loja" e encontrar a loja
+    const sheetLoja = ss.getSheetByName(SHEET_NAME_LOJA);
+    if (!sheetLoja) {
+      response.message = `Aba "${SHEET_NAME_LOJA}" não encontrada.`;
+      Logger.log(`[doGetProdutosDaLoja] Erro: ${response.message}`);
+      throw new Error(response.message); // Lança para ser pego pelo catch externo e logado
+    }
+    Logger.log(`[doGetProdutosDaLoja] Aba "${SHEET_NAME_LOJA}" acessada.`);
+
+    const lojaHeaders = getHeaders(sheetLoja); // Pode lançar erro se planilha Loja estiver vazia
+    const lojaGogoidIndex = lojaHeaders.indexOf(LOJA_GOGOID_COLUMN_NAME); // 'ID'
+    const lojaProdutosIdsIndex = lojaHeaders.indexOf(LOJA_PRODUTOS_COLUMN_NAME); // 'Produtos Da Loja'
+    const lojaNomeIndex = lojaHeaders.indexOf(LOJA_NAME_COLUMN_NAME); // 'loja'
+
+    Logger.log(`[doGetProdutosDaLoja] Cabeçalhos da Aba Loja: [${lojaHeaders.join(', ')}]`);
+    Logger.log(`[doGetProdutosDaLoja] Índices na Aba Loja - gogoid: ${lojaGogoidIndex}, produtosIds: ${lojaProdutosIdsIndex}, nomeLoja: ${lojaNomeIndex}`);
+
+    if (lojaGogoidIndex === -1 || lojaProdutosIdsIndex === -1 || lojaNomeIndex === -1) {
+      let missing = [];
+      if(lojaGogoidIndex === -1) missing.push(LOJA_GOGOID_COLUMN_NAME);
+      if(lojaProdutosIdsIndex === -1) missing.push(LOJA_PRODUTOS_COLUMN_NAME);
+      if(lojaNomeIndex === -1) missing.push(LOJA_NAME_COLUMN_NAME);
+      response.message = `Colunas essenciais (${missing.join(', ')}) faltando na aba "${SHEET_NAME_LOJA}".`;
+      Logger.log(`[doGetProdutosDaLoja] Erro: ${response.message}`);
+      throw new Error(response.message);
+    }
+
+    const todasLojasData = sheetLoja.getDataRange().getValues();
+    let lojaInfo = null;
+    Logger.log(`[doGetProdutosDaLoja] Procurando loja com gogoid "${gogoid}" em ${todasLojasData.length -1} registros da aba Loja.`);
+
+    for (let i = 1; i < todasLojasData.length; i++) { // Começa de 1 para pular cabeçalho
+      const currentRowGogoid = String(todasLojasData[i][lojaGogoidIndex]).trim();
+      if (currentRowGogoid === gogoid) {
+        const nomeDaLoja = String(todasLojasData[i][lojaNomeIndex]).trim();
+        const produtosIdsString = todasLojasData[i][lojaProdutosIdsIndex] ? String(todasLojasData[i][lojaProdutosIdsIndex]).trim() : "";
+        
+        Logger.log(`[doGetProdutosDaLoja] Loja encontrada na linha ${i+1}: Nome="${nomeDaLoja}", GOGOID="${currentRowGogoid}", ProdutosIDs (string)="${produtosIdsString}"`);
+        
+        lojaInfo = {
+          nome: nomeDaLoja,
+          // Divide a string de IDs, remove espaços e filtra IDs vazios
+          produtosIds: produtosIdsString.split(',').map(id => id.trim()).filter(id => id !== "")
+        };
+        Logger.log(`[doGetProdutosDaLoja] Loja Info Processada: Nome="${lojaInfo.nome}", IDs de Produto (array): [${lojaInfo.produtosIds.join(',')}]`);
+        break;
+      }
+    }
+
+    if (!lojaInfo) {
+      response.status = 'not_found';
+      response.message = `Loja com gogoid "${gogoid}" não encontrada.`;
+      Logger.log(`[doGetProdutosDaLoja] ${response.message}`);
+      // Retorna uma resposta JSON controlada, não lança exceção.
+      return ContentService.createTextOutput(JSON.stringify(response))
+                        .setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    if (!lojaInfo.nome) {
+        response.status = 'warning'; // Ou 'error', dependendo da criticidade
+        response.message = `Loja com gogoid "${gogoid}" encontrada, mas não possui um nome definido na planilha.`;
+        Logger.log(`[doGetProdutosDaLoja] Aviso: ${response.message}`);
+        // Decide se continua ou retorna. Por ora, continua mas loga.
+    }
+
+    if (lojaInfo.produtosIds.length === 0) {
+      response.status = 'success'; // Sucesso, mas a loja não tem produtos listados.
+      response.message = `Loja "${lojaInfo.nome}" encontrada, mas não possui produtos associados na lista.`;
+      response.data = { loja: lojaInfo.nome, produtos: [] };
+      Logger.log(`[doGetProdutosDaLoja] ${response.message}`);
+      return ContentService.createTextOutput(JSON.stringify(response))
+                        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    Logger.log(`[doGetProdutosDaLoja] IDs de produto a serem buscados para a loja "${lojaInfo.nome}": [${lojaInfo.produtosIds.join(',')}]`);
+
+    // 2. Acessar a aba "Produtos" e buscar os produtos pelos IDs
+    const sheetProdutos = ss.getSheetByName(SHEET_NAME_PRODUTOS);
+    if (!sheetProdutos) {
+      response.message = `Aba "${SHEET_NAME_PRODUTOS}" não encontrada.`;
+      Logger.log(`[doGetProdutosDaLoja] Erro: ${response.message}`);
+      throw new Error(response.message);
+    }
+    Logger.log(`[doGetProdutosDaLoja] Aba "${SHEET_NAME_PRODUTOS}" acessada.`);
+
+    const produtosHeaders = getHeaders(sheetProdutos); // Pode lançar erro se planilha Produtos estiver vazia
+    const produtoIdPlanilhaIndex = produtosHeaders.indexOf(PRODUCT_ID_COLUMN_NAME); // 'ID_PRODUTO'
+
+    Logger.log(`[doGetProdutosDaLoja] Cabeçalhos da Aba Produtos: [${produtosHeaders.join(', ')}]`);
+    Logger.log(`[doGetProdutosDaLoja] Índice da coluna ID_PRODUTO na Aba Produtos: ${produtoIdPlanilhaIndex}`);
+
+    if (produtoIdPlanilhaIndex === -1) {
+      response.message = `Coluna "${PRODUCT_ID_COLUMN_NAME}" faltando na aba "${SHEET_NAME_PRODUTOS}".`;
+      Logger.log(`[doGetProdutosDaLoja] Erro: ${response.message}`);
+      throw new Error(response.message);
+    }
+
+    const todosProdutosData = sheetProdutos.getDataRange().getValues();
+    const produtosEncontradosParaLoja = [];
+    Logger.log(`[doGetProdutosDaLoja] Buscando ${lojaInfo.produtosIds.length} IDs de produto na aba "${SHEET_NAME_PRODUTOS}" (${todosProdutosData.length -1} registros).`);
+
+    for (let i = 1; i < todosProdutosData.length; i++) { // Ignora cabeçalho
+      const produtoRow = todosProdutosData[i];
+      const produtoIdNaPlanilha = String(produtoRow[produtoIdPlanilhaIndex]).trim();
+      
+      // Logger.log(`[doGetProdutosDaLoja] Verificando produto na linha ${i+1} da aba Produtos: ID="${produtoIdNaPlanilha}"`);
+      if (lojaInfo.produtosIds.includes(produtoIdNaPlanilha)) {
+        const produtoObj = rowToObject(produtoRow, produtosHeaders);
+        produtosEncontradosParaLoja.push(produtoObj);
+        Logger.log(`[doGetProdutosDaLoja] Produto Encontrado e Adicionado: ID="${produtoIdNaPlanilha}", Nome="${produtoObj.NOME || 'N/A'}"`);
+      }
+    }
+    Logger.log(`[doGetProdutosDaLoja] Total de ${produtosEncontradosParaLoja.length} produtos encontrados para a loja "${lojaInfo.nome}".`);
+
+    response.status = 'success';
+    response.message = produtosEncontradosParaLoja.length > 0 ? `Produtos da loja "${lojaInfo.nome}" carregados.` : `Loja "${lojaInfo.nome}" encontrada, mas nenhum dos produtos listados (${lojaInfo.produtosIds.join(',')}) foi encontrado na aba "${SHEET_NAME_PRODUTOS}".`;
+    response.data = {
+      loja: lojaInfo.nome,
+      produtos: produtosEncontradosParaLoja
+    };
+    Logger.log(`[doGetProdutosDaLoja] Resposta final: Status="${response.status}", Mensagem="${response.message}", Número de Produtos Retornados=${produtosEncontradosParaLoja.length}`);
+
+  } catch (error) {
+    // Este catch lida com erros inesperados ou aqueles lançados explicitamente.
+    Logger.log(`[doGetProdutosDaLoja] ERRO CAPTURADO NA FUNÇÃO: ${error.message}\nStack: ${error.stack}`);
+    // Garante que a resposta mantenha a estrutura esperada em caso de erro.
+    response.status = 'error'; 
+    response.message = `Erro interno ao processar produtos da loja: ${error.message}`;
+    response.data = null; 
+  }
+  
+  // Sempre retorna um ContentService output com JSON.
+  // Logger.log(`[doGetProdutosDaLoja] Retornando JSON: ${JSON.stringify(response)}`); // Cuidado com logs muito grandes
+  return ContentService.createTextOutput(JSON.stringify(response))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+// ========================================================================
+// NOVA Função para carregar TODOS os produtos ordenados por reputação da loja:
+// Busca todas as lojas ordenadas por reputação
+// Busca todos os produtos de uma vez (eficiente)
+// Busca produtos em massa (eficiente)
+// Chamada via URL (GET):https://script.google.com/.../exec?action=getTodosProdutosOrdenados
+// ========================================================================
+function doGetTodosProdutosOrdenadosPorReputacao() {
+  const response = { status: 'error', message: '', data: [] };
+  try {
+    // Acessa abas
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const sheetLoja = ss.getSheetByName(SHEET_NAME_LOJA);
+    const sheetProdutos = ss.getSheetByName(SHEET_NAME_PRODUTOS);
+    if (!sheetLoja || !sheetProdutos) throw new Error("Planilhas não encontradas");
+
+    // Busca todas as lojas ordenadas por reputação
+    const lojaHeaders = getHeaders(sheetLoja);
+    const reputacaoIndex = lojaHeaders.indexOf(LOJA_REPUTACAO_COLUMN_NAME);
+    const lojaData = sheetLoja.getDataRange().getValues()
+      .slice(1) // Remove cabeçalho
+      .sort((a, b) => b[reputacaoIndex] - a[reputacaoIndex]); // Ordena DESC
+
+    // Busca todos os produtos de uma vez (eficiente)
+    const produtosHeaders = getHeaders(sheetProdutos);
+    const produtosData = sheetProdutos.getDataRange().getValues()
+      .slice(1) // Remove cabeçalho
+      .map(row => rowToObject(row, produtosHeaders));
+
+    // Mapeia produtos por ID para busca rápida
+    const produtosMap = new Map();
+    for (const produto of produtosData) {
+      produtosMap.set(produto[PRODUCT_ID_COLUMN_NAME], produto);
+    }
+
+    // Monta resposta ordenada
+    for (const lojaRow of lojaData) {
+      const produtosIds = lojaRow[lojaHeaders.indexOf(LOJA_PRODUTOS_COLUMN_NAME)]?.split(',') || [];
+      const produtosDaLoja = produtosIds
+        .map(id => produtosMap.get(id.trim()))
+        .filter(p => p !== undefined); // Remove IDs inválidos
+
+      if (produtosDaLoja.length > 0) {
+        response.data.push({
+          loja: lojaRow[lojaHeaders.indexOf(LOJA_NAME_COLUMN_NAME)],
+          reputacao: lojaRow[reputacaoIndex],
+          produtos: produtosDaLoja
+        });
+      }
+    }
+
+    response.status = 'success';
+
+  } catch (error) {
+    response.message = error.message;
+    Logger.log(`[doGetTodosProdutosOrdenadosPorReputacao] Erro: ${error.message}`);
+  }
+  return ContentService.createTextOutput(JSON.stringify(response))
+    .setMimeType(ContentService.MimeType.JSON);
 }
