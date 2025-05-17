@@ -362,13 +362,14 @@ function doGet(e) {
     Logger.log(`[doGet Principal] Requisição recebida com action: ${action}`);
 
     if (action === 'getprodutosdaloja') {
-      // Chama a função para buscar produtos por GOGOID
+      
       responsePayload = doGetProdutosDaLoja(e);
+      return responsePayload;
     } else if (action === 'getproductbyid') {
       // Chama a função para buscar um produto por ID
       responsePayload = doGetProductById(e);
 
-    } else if (action === 'GetTodosProdutosOrdenadosPorReputacao') {
+    } else if (action === 'gettodosprodutosordenadosporreputacao') {
       // Chama a função para buscar um produto por ID
       responsePayload = doGetTodosProdutosOrdenadosPorReputacao(e);
 
@@ -719,64 +720,156 @@ function doGetProductById(e) {
 // Chamada via URL (GET):https://script.google.com/.../exec?action=getProdutosDaLoja&gogoid=LOJA_123
 // ========================================================================
 function doGetProdutosDaLoja(e) {
-  const response = { status: 'error', message: '', data: null };
+  // Inicializa o objeto de resposta padrão.
+  const response = { status: 'error', message: 'Erro desconhecido ao buscar produtos da loja.', data: null };
+  const gogoid = e?.parameter?.gogoid; // gogoid da LOJA
+  
+  Logger.log(`[doGetProdutosDaLoja] Iniciando. gogoid da loja recebido: "${gogoid}"`);
+
   try {
-    const gogoid = e?.parameter?.gogoid;
-    if (!gogoid) throw new Error("Parâmetro 'gogoid' obrigatório");
-
-    // Acessa a aba "Loja"
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    const sheetLoja = ss.getSheetByName(SHEET_NAME_LOJA);
-    if (!sheetLoja) throw new Error(`Aba "${SHEET_NAME_LOJA}" não encontrada`);
-
-    // Busca dados da loja
-    const lojaHeaders = getHeaders(sheetLoja);
-    const lojaData = sheetLoja.getDataRange().getValues();
-    const gogoidIndex = lojaHeaders.indexOf(LOJA_GOGOID_COLUMN_NAME);
-    const produtosIndex = lojaHeaders.indexOf(LOJA_PRODUTOS_COLUMN_NAME);
-    const nomeLojaIndex = lojaHeaders.indexOf(LOJA_NAME_COLUMN_NAME);
-
-    // Valida colunas
-    if ([gogoidIndex, produtosIndex, nomeLojaIndex].includes(-1)) {
-      throw new Error("Colunas essenciais faltando na aba Loja");
+    if (!gogoid) {
+      response.message = "Parâmetro 'gogoid' da loja é obrigatório.";
+      Logger.log(`[doGetProdutosDaLoja] Erro: ${response.message}`);
+      // Retorna imediatamente se o gogoid não for fornecido.
+      return ContentService.createTextOutput(JSON.stringify(response))
+                        .setMimeType(ContentService.MimeType.JSON);
     }
 
-    // Encontra a loja
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+
+    // 1. Acessar a aba "Loja" e encontrar a loja
+    const sheetLoja = ss.getSheetByName(SHEET_NAME_LOJA);
+    if (!sheetLoja) {
+      response.message = `Aba "${SHEET_NAME_LOJA}" não encontrada.`;
+      Logger.log(`[doGetProdutosDaLoja] Erro: ${response.message}`);
+      throw new Error(response.message); // Lança para ser pego pelo catch externo e logado
+    }
+    Logger.log(`[doGetProdutosDaLoja] Aba "${SHEET_NAME_LOJA}" acessada.`);
+
+    const lojaHeaders = getHeaders(sheetLoja); // Pode lançar erro se planilha Loja estiver vazia
+    const lojaGogoidIndex = lojaHeaders.indexOf(LOJA_GOGOID_COLUMN_NAME); // 'ID'
+    const lojaProdutosIdsIndex = lojaHeaders.indexOf(LOJA_PRODUTOS_COLUMN_NAME); // 'Produtos Da Loja'
+    const lojaNomeIndex = lojaHeaders.indexOf(LOJA_NAME_COLUMN_NAME); // 'loja'
+
+    Logger.log(`[doGetProdutosDaLoja] Cabeçalhos da Aba Loja: [${lojaHeaders.join(', ')}]`);
+    Logger.log(`[doGetProdutosDaLoja] Índices na Aba Loja - gogoid: ${lojaGogoidIndex}, produtosIds: ${lojaProdutosIdsIndex}, nomeLoja: ${lojaNomeIndex}`);
+
+    if (lojaGogoidIndex === -1 || lojaProdutosIdsIndex === -1 || lojaNomeIndex === -1) {
+      let missing = [];
+      if(lojaGogoidIndex === -1) missing.push(LOJA_GOGOID_COLUMN_NAME);
+      if(lojaProdutosIdsIndex === -1) missing.push(LOJA_PRODUTOS_COLUMN_NAME);
+      if(lojaNomeIndex === -1) missing.push(LOJA_NAME_COLUMN_NAME);
+      response.message = `Colunas essenciais (${missing.join(', ')}) faltando na aba "${SHEET_NAME_LOJA}".`;
+      Logger.log(`[doGetProdutosDaLoja] Erro: ${response.message}`);
+      throw new Error(response.message);
+    }
+
+    const todasLojasData = sheetLoja.getDataRange().getValues();
     let lojaInfo = null;
-    for (let i = 1; i < lojaData.length; i++) {
-      if (String(lojaData[i][gogoidIndex]).trim() === gogoid) {
+    Logger.log(`[doGetProdutosDaLoja] Procurando loja com gogoid "${gogoid}" em ${todasLojasData.length -1} registros da aba Loja.`);
+
+    for (let i = 1; i < todasLojasData.length; i++) { // Começa de 1 para pular cabeçalho
+      const currentRowGogoid = String(todasLojasData[i][lojaGogoidIndex]).trim();
+      if (currentRowGogoid === gogoid) {
+        const nomeDaLoja = String(todasLojasData[i][lojaNomeIndex]).trim();
+        const produtosIdsString = todasLojasData[i][lojaProdutosIdsIndex] ? String(todasLojasData[i][lojaProdutosIdsIndex]).trim() : "";
+        
+        Logger.log(`[doGetProdutosDaLoja] Loja encontrada na linha ${i+1}: Nome="${nomeDaLoja}", GOGOID="${currentRowGogoid}", ProdutosIDs (string)="${produtosIdsString}"`);
+        
         lojaInfo = {
-          nome: lojaData[i][nomeLojaIndex],
-          produtosIds: lojaData[i][produtosIndex]?.split(',') || []
+          nome: nomeDaLoja,
+          // Divide a string de IDs, remove espaços e filtra IDs vazios
+          produtosIds: produtosIdsString.split(',').map(id => id.trim()).filter(id => id !== "")
         };
+        Logger.log(`[doGetProdutosDaLoja] Loja Info Processada: Nome="${lojaInfo.nome}", IDs de Produto (array): [${lojaInfo.produtosIds.join(',')}]`);
         break;
       }
     }
-    if (!lojaInfo) throw new Error("Loja não encontrada");
 
-    // Busca produtos em massa (eficiente)
-    const sheetProdutos = ss.getSheetByName(SHEET_NAME_PRODUTOS);
-    const produtosHeaders = getHeaders(sheetProdutos);
-    const produtosData = sheetProdutos.getDataRange().getValues();
-    const idProdutoIndex = produtosHeaders.indexOf(PRODUCT_ID_COLUMN_NAME);
-
-    const produtos = [];
-    for (const row of produtosData.slice(1)) { // Ignora cabeçalho
-      if (lojaInfo.produtosIds.includes(String(row[idProdutoIndex]))) {
-        produtos.push(rowToObject(row, produtosHeaders));
-      }
+    if (!lojaInfo) {
+      response.status = 'not_found';
+      response.message = `Loja com gogoid "${gogoid}" não encontrada.`;
+      Logger.log(`[doGetProdutosDaLoja] ${response.message}`);
+      // Retorna uma resposta JSON controlada, não lança exceção.
+      return ContentService.createTextOutput(JSON.stringify(response))
+                        .setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    if (!lojaInfo.nome) {
+        response.status = 'warning'; // Ou 'error', dependendo da criticidade
+        response.message = `Loja com gogoid "${gogoid}" encontrada, mas não possui um nome definido na planilha.`;
+        Logger.log(`[doGetProdutosDaLoja] Aviso: ${response.message}`);
+        // Decide se continua ou retorna. Por ora, continua mas loga.
     }
 
+    if (lojaInfo.produtosIds.length === 0) {
+      response.status = 'success'; // Sucesso, mas a loja não tem produtos listados.
+      response.message = `Loja "${lojaInfo.nome}" encontrada, mas não possui produtos associados na lista.`;
+      response.data = { loja: lojaInfo.nome, produtos: [] };
+      Logger.log(`[doGetProdutosDaLoja] ${response.message}`);
+      return ContentService.createTextOutput(JSON.stringify(response))
+                        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    Logger.log(`[doGetProdutosDaLoja] IDs de produto a serem buscados para a loja "${lojaInfo.nome}": [${lojaInfo.produtosIds.join(',')}]`);
+
+    // 2. Acessar a aba "Produtos" e buscar os produtos pelos IDs
+    const sheetProdutos = ss.getSheetByName(SHEET_NAME_PRODUTOS);
+    if (!sheetProdutos) {
+      response.message = `Aba "${SHEET_NAME_PRODUTOS}" não encontrada.`;
+      Logger.log(`[doGetProdutosDaLoja] Erro: ${response.message}`);
+      throw new Error(response.message);
+    }
+    Logger.log(`[doGetProdutosDaLoja] Aba "${SHEET_NAME_PRODUTOS}" acessada.`);
+
+    const produtosHeaders = getHeaders(sheetProdutos); // Pode lançar erro se planilha Produtos estiver vazia
+    const produtoIdPlanilhaIndex = produtosHeaders.indexOf(PRODUCT_ID_COLUMN_NAME); // 'ID_PRODUTO'
+
+    Logger.log(`[doGetProdutosDaLoja] Cabeçalhos da Aba Produtos: [${produtosHeaders.join(', ')}]`);
+    Logger.log(`[doGetProdutosDaLoja] Índice da coluna ID_PRODUTO na Aba Produtos: ${produtoIdPlanilhaIndex}`);
+
+    if (produtoIdPlanilhaIndex === -1) {
+      response.message = `Coluna "${PRODUCT_ID_COLUMN_NAME}" faltando na aba "${SHEET_NAME_PRODUTOS}".`;
+      Logger.log(`[doGetProdutosDaLoja] Erro: ${response.message}`);
+      throw new Error(response.message);
+    }
+
+    const todosProdutosData = sheetProdutos.getDataRange().getValues();
+    const produtosEncontradosParaLoja = [];
+    Logger.log(`[doGetProdutosDaLoja] Buscando ${lojaInfo.produtosIds.length} IDs de produto na aba "${SHEET_NAME_PRODUTOS}" (${todosProdutosData.length -1} registros).`);
+
+    for (let i = 1; i < todosProdutosData.length; i++) { // Ignora cabeçalho
+      const produtoRow = todosProdutosData[i];
+      const produtoIdNaPlanilha = String(produtoRow[produtoIdPlanilhaIndex]).trim();
+      
+      // Logger.log(`[doGetProdutosDaLoja] Verificando produto na linha ${i+1} da aba Produtos: ID="${produtoIdNaPlanilha}"`);
+      if (lojaInfo.produtosIds.includes(produtoIdNaPlanilha)) {
+        const produtoObj = rowToObject(produtoRow, produtosHeaders);
+        produtosEncontradosParaLoja.push(produtoObj);
+        Logger.log(`[doGetProdutosDaLoja] Produto Encontrado e Adicionado: ID="${produtoIdNaPlanilha}", Nome="${produtoObj.NOME || 'N/A'}"`);
+      }
+    }
+    Logger.log(`[doGetProdutosDaLoja] Total de ${produtosEncontradosParaLoja.length} produtos encontrados para a loja "${lojaInfo.nome}".`);
+
     response.status = 'success';
+    response.message = produtosEncontradosParaLoja.length > 0 ? `Produtos da loja "${lojaInfo.nome}" carregados.` : `Loja "${lojaInfo.nome}" encontrada, mas nenhum dos produtos listados (${lojaInfo.produtosIds.join(',')}) foi encontrado na aba "${SHEET_NAME_PRODUTOS}".`;
     response.data = {
       loja: lojaInfo.nome,
-      produtos: produtos
+      produtos: produtosEncontradosParaLoja
     };
+    Logger.log(`[doGetProdutosDaLoja] Resposta final: Status="${response.status}", Mensagem="${response.message}", Número de Produtos Retornados=${produtosEncontradosParaLoja.length}`);
 
   } catch (error) {
-    response.message = error.message;
-    Logger.log(`[doGetProdutosDaLoja] Erro: ${error.message}`);
+    // Este catch lida com erros inesperados ou aqueles lançados explicitamente.
+    Logger.log(`[doGetProdutosDaLoja] ERRO CAPTURADO NA FUNÇÃO: ${error.message}\nStack: ${error.stack}`);
+    // Garante que a resposta mantenha a estrutura esperada em caso de erro.
+    response.status = 'error'; 
+    response.message = `Erro interno ao processar produtos da loja: ${error.message}`;
+    response.data = null; 
   }
+  
+  // Sempre retorna um ContentService output com JSON.
+  // Logger.log(`[doGetProdutosDaLoja] Retornando JSON: ${JSON.stringify(response)}`); // Cuidado com logs muito grandes
   return ContentService.createTextOutput(JSON.stringify(response))
     .setMimeType(ContentService.MimeType.JSON);
 }
