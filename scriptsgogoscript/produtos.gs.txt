@@ -1,6 +1,6 @@
 // --- CONFIGURAÇÕES GLOBAIS ---
 // ** Certifique-se de que o SPREADSHEET_ID está correto **
-const SPREADSHEET_ID = '1EYUPZjfdnPJz9tI9yJFN1cVoiy9Fs3HABqFZFaz4r2A'; // Substitua pelo ID da sua planilha
+const SPREADSHEET_ID = '1VM6a0Dtm7RPcaBByj1BC-9gvQ8qwFau8wKs1ZS4qIog'; // Substitua pelo ID da sua planilha
 
 // Nomes das abas
 const SHEET_NAME_PRODUTOS = 'Produtos'; // Nome da aba onde estão os produtos
@@ -933,3 +933,4 @@ function doGetTodosProdutosOrdenadosPorReputacao() {
   return ContentService.createTextOutput(JSON.stringify(response))
     .setMimeType(ContentService.MimeType.JSON);
 }
+
